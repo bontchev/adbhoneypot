@@ -31,3 +31,5 @@ Reverse-engeenered documentation - [ADB Protocol](https://github.com/cstyan/adbD
 
 
 --------------------------------------------------------------------------------
+
+## Installation and test [docs](docs/INSTALL.md)    
