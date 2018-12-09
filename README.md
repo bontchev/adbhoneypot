@@ -20,7 +20,9 @@ For now the honeypot accepts:
 * `adb push local remote - Copy files and directories from the local device (computer) to a remote location on the device;`   
 
 --------------------------------------------------------------------------------
-   
+
+## Useful sources   
+
 Android Open Source Project - [ADB Overview](https://github.com/aosp-mirror/platform_system_core/blob/master/adb/OVERVIEW.TXT)   
 
 Android Developer - [ADB Documentation](https://developer.android.com/studio/command-line/adb)
