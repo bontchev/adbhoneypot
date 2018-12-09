@@ -213,7 +213,7 @@ class AdbHoneyProtocolBase(Protocol):
         """
         systemIdentityString = self.cfg['device_id'].encode('utf8')
         if version != self.version or maxPayload < maxPayload:
-            log('Disconnecting: Protocol version or max payload mismatch', cfg)
+            log('Disconnecting: Protocol version or max payload mismatch', self.cfg)
             self.transport.loseConnection()
         else:
             self.sendCommand(protocol.CMD_CNXN, 
