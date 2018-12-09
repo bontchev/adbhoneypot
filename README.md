@@ -21,7 +21,7 @@ For now the honeypot accepts:
 
 --------------------------------------------------------------------------------
 
-## Useful sources   
+## Links    
 
 Android Open Source Project - [ADB Overview](https://github.com/aosp-mirror/platform_system_core/blob/master/adb/OVERVIEW.TXT)   
 
@@ -29,6 +29,7 @@ Android Developer - [ADB Documentation](https://developer.android.com/studio/com
 
 Reverse-engeenered documentation - [ADB Protocol](https://github.com/cstyan/adbDocumentation#adb-protocol-documentation)   
 
+Geir Sporsheim - [protocol.py](https://github.com/sporsh/twisted-adb/blob/master/adb/protocol.py)
 
 --------------------------------------------------------------------------------
 
