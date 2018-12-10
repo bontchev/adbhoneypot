@@ -60,6 +60,8 @@ def log(message, cfg):
         print(message)
         sys.stdout.flush()
     else:
+        if cfg['log_path'] and not os.path.exists(cfg['log_path']):
+            os.makedirs(cfg['log_path'])
         with open(cfg['logfile'], 'a') as f:
             print(message, file=f)
 
@@ -353,6 +355,7 @@ def main():
     cfg_options['addr'] = CONFIG.get('honeypot', 'out_addr', fallback='0.0.0.0')
     cfg_options['port'] = CONFIG.getint('honeypot', 'listen_port', fallback=5555)
     cfg_options['download_dir'] = CONFIG.get('honeypot', 'download_path', fallback='')
+    cfg_options['log_path'] = CONFIG.get('honeypot', 'log_path', fallback='')
     log_name = CONFIG.get('honeypot', 'log_filename', fallback='')
     if log_name:
         cfg_options['logfile'] = os.path.join(CONFIG.get('honeypot', 'log_path', fallback=''), log_name)
