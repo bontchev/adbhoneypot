@@ -264,7 +264,7 @@ class AdbHoneyProtocolBase(Protocol):
         """Called when the stream on the remote side is ready for write.
         @param data: should be ''
         """
-        if 'shell:' in self.streams[remoteId][0][2]:
+        if 'shell' in self.streams[remoteId][0][2]:
             self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
 
     def handle_CLSE(self, remoteId, localId, data, message):
