@@ -84,18 +84,18 @@ docs/sql/sqlite3.sql:
 // test adb commands 
 
 ```
-sudo install adb 
-sudo apt install android-tools-adb
+sudo apt install adb 
+// sudo apt install android-tools-adb
 ```
 
 ---------------------------------------------------------------------
 
-tty1:   
+terminal1:   
 ``` .../ADBHoney$ python adbhoney.py ```
 
 --------------------------------------------------------------------- 
 
-tty2:   
+terminal2:   
 ``` $ nmap 127.0.0.1 ```
 
 ```
