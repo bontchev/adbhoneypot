@@ -81,7 +81,7 @@ docs/sql/sqlite3.sql:
 ===================================================
 # Start and test example 
 
-// test adb commands 
+* test adb commands 
 
 ```
 sudo apt install adb 
