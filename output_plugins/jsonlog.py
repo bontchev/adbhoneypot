@@ -6,11 +6,11 @@ from core.config import CONFIG
 
 class Output(core.output.Output):
 
-    def __init__(self, sensor=None):
+    def __init__(self, general_options):
         self.outfile = CONFIG.get('output_jsonlog', 'logfile')
         self.epoch_timestamp = CONFIG.getboolean('output_jsonlog', 'epoch_timestamp', fallback=False)
 
-        core.output.Output.__init__(self, sensor)
+        core.output.Output.__init__(self, general_options)
 
 
     def start(self):

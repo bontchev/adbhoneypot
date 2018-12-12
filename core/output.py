@@ -6,12 +6,14 @@ class Output(object):
     Abstract base class intended to be inherited by output plugins.
     """
 
-    def __init__(self, sensor=None):
+    def __init__(self, general_options):
         
-        if not sensor:
+        self.cfg = general_options
+
+        if not 'sensor' in self.cfg:
             self.sensor = CONFIG.get('honeypot', 'sensor_name', fallback=socket.gethostname())
         else:
-            self.sensor = sensor
+            self.sensor = self.cfg['sensor']
 
         self.start()
 

@@ -31,6 +31,7 @@ def import_plugins(cfg):
     log('Loading plugins...', cfg)
     output_plugins = []
     sensor = cfg['sensor']
+    general_options = cfg
     for x in CONFIG.sections():
         if not x.startswith('output_'):
             continue
@@ -39,7 +40,7 @@ def import_plugins(cfg):
         engine = x.split('_')[1]
         try:
             output = __import__('output_plugins.{}'.format(engine),
-                                globals(), locals(), ['output'], -1).Output(sensor)
+                                globals(), locals(), ['output'], -1).Output(general_options)
             output_plugins.append(output)
             log('Loaded output engine: {}'.format(engine), cfg)
         except ImportError as e:
@@ -82,7 +83,7 @@ class AdbHoneyProtocolBase(Protocol):
         self.start = time.time()
 
     def connectionMade(self):
-        # self.transport.write('Welcome!')
+        self.cfg['session'] = binascii.hexlify(os.urandom(6))
         log('{}\t{}\tconnection start ({})'.format(self.getutctime(), self.cfg['src_addr'], 
             self.cfg['session']), self.cfg)
         localip = self.getlocalip()
@@ -201,7 +202,7 @@ class AdbHoneyProtocolBase(Protocol):
             'message': 'Downloaded file with SHA-256 {} to {}'.format(shasum, fullname),
             'src_ip': self.cfg['src_addr'],
             'shasum': shasum,
-            'outfile': fullname,
+            'fullname': fullname,
             'file_size': data_len,
             'sensor': self.cfg['sensor'],
         }
@@ -389,8 +390,6 @@ def main():
     cfg_options['sensor'] = args.sensor
     if args.debug:
         cfg_options['debug'] = True
-    session = binascii.hexlify(os.urandom(6))
-    cfg_options['session'] = session
 
     log('Listening on {}:{}.'.format(cfg_options['addr'], cfg_options['port']), cfg_options)
     cfg_options['output_plugins'] = import_plugins(cfg_options)
