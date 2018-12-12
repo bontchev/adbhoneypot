@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS `downloads` (
   `timestamp` datetime DEFAULT NULL,
   `filesize` int(11) DEFAULT NULL,
   `download_sha_hash` varchar(65) DEFAULT NULL,
-  `outfile` text,
+  `fullname` text,
   PRIMARY KEY (`id`)
 );   
 
