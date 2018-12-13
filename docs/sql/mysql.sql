@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS `sensors` (
 
 CREATE TABLE IF NOT EXISTS `virustotals` (
   `virustotal` int(11) NOT NULL AUTO_INCREMENT,
-  `virustotal_md5_hash` varchar(32) NOT NULL,
+  `virustotal_sha256_hash` varchar(65) NOT NULL,
   `virustotal_timestamp` int(11) NOT NULL,
   `virustotal_permalink` text NOT NULL,
   PRIMARY KEY (`virustotal`)
