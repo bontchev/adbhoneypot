@@ -10,7 +10,7 @@ import requests
 import hashlib
 import core.output
 from core.config import CONFIG
-from adbhoney import log 
+from adbhoney import log
 
 
 class Output(core.output.Output):
@@ -40,7 +40,7 @@ class Output(core.output.Output):
 
     def start(self):
         try:
-            self.dbh = MySQLdb.connect(host=self.host, user=self.user, passwd=self.password, 
+            self.dbh = MySQLdb.connect(host=self.host, user=self.user, passwd=self.password,
                 db=self.database, port=self.port, charset='utf8', use_unicode=True)
         except:
             self._local_log('Unable to connect the database')
@@ -70,23 +70,29 @@ class Output(core.output.Output):
                self.reader_asn.close()
 
     def write(self, event):
-        # TODO: Correct timezone?
+        """
+        TODO: Check if the type (date, datetime or timestamp) of columns is appropriate for your needs and timezone
+        - MySQL Documentation - The DATE, DATETIME, and TIMESTAMP Types
+            (https://dev.mysql.com/doc/refman/5.7/en/datetime.html):
+        "MySQL converts TIMESTAMP values from the current time zone to UTC for storage,
+        and back from UTC to the current time zone for retrieval.
+        (This does not occur for other types such as DATETIME.)"
+        """
         if 'connect' in event['eventid']:
             self._connect_event(event)
 
         if 'file_upload' in event['eventid']:
             try:
-                timestamp = datetime.datetime.strptime(event['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ')
                 self.cursor.execute("""
                     INSERT INTO downloads (
-                        session, timestamp, filesize, download_sha_hash, fullname) 
-                    VALUES (%s,%s,%s,%s,%s)""",
-                    (event['session'], timestamp, event['file_size'], 
+                        session, timestamp, filesize, download_sha_hash, fullname)
+                    VALUES (%s,FROM_UNIXTIME(%s),%s,%s,%s)""",
+                    (event['session'], event['unixtime'], event['file_size'],
                         event['shasum'], event['fullname']))
                 self.dbh.commit()
             except Exception as e:
                 self._local_log(e)
-            
+
             if self.virustotal:
                 self._upload_event_vt(event)
 
@@ -95,9 +101,8 @@ class Output(core.output.Output):
 
         if 'closed' in event['eventid']:
             try:
-                endtime = datetime.datetime.strptime(event['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ')
-                self.cursor.execute("UPDATE connections SET endtime = %s WHERE session = %s",
-                                        (endtime, event['session']) )
+                self.cursor.execute("UPDATE connections SET endtime = FROM_UNIXTIME(%s) WHERE session = %s",
+                                        (event['unixtime'], event['session']) )
                 self.dbh.commit()
             except Exception as e:
                 self._local_log(e)
@@ -114,21 +119,21 @@ class Output(core.output.Output):
                 if country is None:
                     country = ''
                     country_code = ''
-                else:            
+                else:
                     country_code = response_city.country.iso_code
             except Exception as e:
                 self._local_log(e)
                 city = ''
                 country = ''
                 country_code = ''
-            
+
             try:
                 response_asn = self.reader_asn.asn(remote_ip)
                 if response_asn.autonomous_system_organization is not None:
                     org = response_asn.autonomous_system_organization.encode('utf8')
                 else:
                     org = ''
-                    
+
                 if response_asn.autonomous_system_number is not None:
                     asn_num = response_asn.autonomous_system_number
                 else:
@@ -136,7 +141,7 @@ class Output(core.output.Output):
             except Exception as e:
                 self._local_log(e)
                 org = ''
-                asn_num = 0    
+                asn_num = 0
         else:
             city = ''
             country = ''
@@ -146,7 +151,7 @@ class Output(core.output.Output):
 
         try:
             is_exist = self.cursor.execute("SELECT id, name FROM sensors WHERE name='%s'" % event['sensor'])
-            if not is_exist: 
+            if not is_exist:
                 self.cursor.execute("INSERT INTO sensors (name) VALUES ('%s')" % (event['sensor']))
                 self.dbh.commit()
                 sensor_id = self.cursor.lastrowid
@@ -154,30 +159,29 @@ class Output(core.output.Output):
                 sensor_id = self.cursor.fetchall()[0][0]
         except Exception as e:
             self._local_log(e)
-            sensor_id = None    
+            sensor_id = None
 
         try:
-            starttime = datetime.datetime.strptime(event['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ')
             self.cursor.execute("""
                 INSERT INTO connections (
-                    session, starttime, endtime, sensor, ip, local_port, 
-                    country_name, city_name, org, country_iso_code, org_asn, 
-                    local_host, remote_port) 
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, 
-                (event['session'], starttime, None, sensor_id, 
-                    event['src_ip'], event['dst_port'], country, city, org, 
+                    session, starttime, endtime, sensor, ip, local_port,
+                    country_name, city_name, org, country_iso_code, org_asn,
+                    local_host, remote_port)
+                VALUES (%s,FROM_UNIXTIME(%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (event['session'], event['unixtime'], None, sensor_id,
+                    event['src_ip'], event['dst_port'], country, city, org,
                     country_code, asn_num, event['dst_ip'], event['src_port']))
-            self.dbh.commit()                            
+            self.dbh.commit()
         except Exception as e:
             self._local_log(e)
 
     def _upload_event_vt(self, event):
         shasum = event['shasum']
-        is_exist = self.cursor.execute("""SELECT virustotal_sha256_hash 
-                                            FROM virustotals  
+        is_exist = self.cursor.execute("""SELECT virustotal_sha256_hash
+                                            FROM virustotals
                                             WHERE virustotal_sha256_hash='%s'""" % shasum)
-        if is_exist == 0: 
+        if is_exist == 0:
             if self.vtapikey:
                 url = 'https://www.virustotal.com/vtapi/v2/file/report'
                 params = {'apikey': self.vtapikey, 'resource': shasum}
@@ -194,15 +198,15 @@ class Output(core.output.Output):
 
             if j['response_code'] == 1: # file was known to virustotal
                 permalink = j['permalink']
-                # Convert UTC scan_date to Unix time  
-                date = calendar.timegm(time.strptime(j['scan_date'], '%Y-%m-%d %H:%M:%S'))
-                try:            
+                # Convert UTC scan_date to local Unix time
+                unixtime = time.mktime(time.strptime(j['scan_date'], '%Y-%m-%d %H:%M:%S')) - time.timezone
+                try:
                     self.cursor.execute("""INSERT INTO virustotals (
-                                                virustotal_sha256_hash, 
-                                                virustotal_permalink, 
-                                                virustotal_timestamp) 
+                                                virustotal_sha256_hash,
+                                                virustotal_permalink,
+                                                virustotal_timestamp)
                                                 VALUES (%s,%s,%s)""",
-                                        (shasum, permalink, date))
+                                        (shasum, permalink, unixtime))
                 except Exception as e:
                     self._local_log(e)
 
@@ -218,19 +222,19 @@ class Output(core.output.Output):
                         res = None
                     try:
                         self.cursor.execute("""INSERT INTO virustotalscans (
-                                                    virustotal, 
-                                                    virustotalscan_scanner, 
-                                                    virustotalscan_result) 
+                                                    virustotal,
+                                                    virustotalscan_scanner,
+                                                    virustotalscan_result)
                                                     VALUES (%s,%s,%s)""",
                                             (virustotal, av, res))
                     except Exception as e:
                         self._local_log(e)
-                    self._local_log("scanner {} result {}".format(av, scans[av]))
+                    # self._local_log("scanner {} result {}".format(av, scans[av]))
 
                 self.dbh.commit()
 
     def _emulate_command(self, command):
-        # TODO: implement the logic 
+        # TODO: implement the logic
         return False
 
     def _input_event(self, event):
@@ -239,13 +243,13 @@ class Output(core.output.Output):
             sc = command.strip()
             shasum = hashlib.sha256(sc).hexdigest()
             command_id = self.cursor.execute("""SELECT id
-                                            FROM commands  
+                                            FROM commands
                                             WHERE inputhash='%s'""" % shasum)
-            if not command_id: 
-                try:            
+            if not command_id:
+                try:
                     self.cursor.execute("""INSERT INTO commands (
                                                 input,
-                                                inputhash) 
+                                                inputhash)
                                                 VALUES (%s,%s)""",
                                         (sc, shasum))
                     self.dbh.commit()
@@ -253,19 +257,18 @@ class Output(core.output.Output):
                 except Exception as e:
                     self._local_log(e)
                     command_id = 0
-            else:     
+            else:
                 command_id = self.cursor.fetchall()[0][0]
 
-            timestamp = datetime.datetime.strptime(event['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ')
             success = self._emulate_command(sc)
             try:
                 self.cursor.execute("""INSERT INTO input (
                                         session,
                                         timestamp,
                                         success,
-                                        input) 
-                                        VALUES (%s,%s,%s,%s)""",
-                                (event['session'], timestamp, success, command_id))
+                                        input)
+                                        VALUES (%s,FROM_UNIXTIME(%s),%s,%s)""",
+                                (event['session'], event['unixtime'], success, command_id))
                 self.dbh.commit()
 
             except Exception as e:
