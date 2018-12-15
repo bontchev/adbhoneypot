@@ -23,7 +23,8 @@ def stop_plugins(cfg):
     for plugin in cfg['output_plugins']:
         try:
             plugin.stop()
-        except:
+        except Exception as e:
+            log(e, cfg)
             continue
 
 def import_plugins(cfg):
@@ -49,11 +50,13 @@ def import_plugins(cfg):
             log('Failed to load output engine: {}'.format(engine), cfg)
     return output_plugins
 
-def write_event(event, output_plugins):
+def write_event(event, cfg):
+    output_plugins = cfg['output_plugins']
     for plugin in output_plugins:
         try:
             plugin.write(event)
-        except:
+        except Exception as e:
+            log(e, cfg)
             continue
 
 def log(message, cfg):
@@ -101,7 +104,7 @@ class AdbHoneyProtocolBase(Protocol):
             'dst_port': self.cfg['port'],
             'sensor': self.cfg['sensor']
         }
-        write_event(event, self.cfg['output_plugins'])
+        write_event(event, self.cfg)
 
     def dataReceived(self, data):
         self.buff += data
@@ -126,13 +129,14 @@ class AdbHoneyProtocolBase(Protocol):
                 'duration': duration,
                 'sensor': self.cfg['sensor']
             }
-            write_event(event, self.cfg['output_plugins'])
+            write_event(event, self.cfg)
 
     def getMessage(self, data):
         try:
             message, self.buff = protocol.AdbMessage.decode(self.buff)
-        except:
-            #TODO: correctly handle corrupt messages
+        except Exception as e:
+            # TODO: correctly handle corrupt messages
+            # log(e, cfg)
             return
         return message
 
@@ -206,7 +210,7 @@ class AdbHoneyProtocolBase(Protocol):
             'file_size': data_len,
             'sensor': self.cfg['sensor'],
         }
-        write_event(event, self.cfg['output_plugins'])
+        write_event(event, self.cfg)
         if not os.path.exists(fullname):
             with open(fullname, 'wb') as f:
                 f.write(data)
@@ -253,7 +257,7 @@ class AdbHoneyProtocolBase(Protocol):
                 'input': message.data[6:-1],
                 'sensor': self.cfg['sensor']
             }
-            write_event(event, self.cfg['output_plugins'])
+            write_event(event, self.cfg)
 
         elif 'sync' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')

@@ -188,7 +188,8 @@ class Output(core.output.Output):
                         time.sleep(63)
                         response = requests.get(url, params=params)
                         j = response.json()
-                except:
+                except Exception as e:
+                    self._local_log(e)
                     j = {'response_code': -2}
 
             if j['response_code'] == 1: # file was known to virustotal
