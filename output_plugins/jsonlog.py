@@ -1,5 +1,6 @@
 from __future__ import print_function
 import json
+import copy
 import core.output
 from core.config import CONFIG
 
@@ -12,7 +13,6 @@ class Output(core.output.Output):
 
         core.output.Output.__init__(self, general_options)
 
-
     def start(self):
         pass
 
@@ -21,6 +21,8 @@ class Output(core.output.Output):
 
     def write(self, event):
         if not self.epoch_timestamp:
-            event.pop('unixtime', None)
+            # We need 'unixtime' value in some other plugins
+            event_dump = copy.deepcopy(event)
+            event_dump.pop('unixtime', None)
         with open(self.outfile, 'a') as f:
-            print(json.dumps(event), file=f)
+            print(json.dumps(event_dump), file=f)
