@@ -1,27 +1,27 @@
-# Installation guide (on Ubuntu 16.04): 
+# Installation guide (on Ubuntu 16.04):
 
-1) (Optional) Create user *adbh*  (not root user) and switch to it   
-``` $ sudo su - adbh ```   
-2) Create virtual envirionment (Python 2.7.\*) with name *adbh_env*    
-``` $ virtualenv --python=python2 adbh_env ```   
-``` $ cd adbh_env/ ```   
-3) Activate the envirionment   
-``` $ source ./bin/activate ```  
-``` $ cd .. ```    
-4) Create folder *adbh_project* inside *adbh_env*   
-``` $ mkdir adbh_project ```   
-``` $ cd adbh_project/ ```   
-5) Clone the project from the repository   
-``` $ git https://github.com/venetay/ADBHoney.git . ```   
-6) Install requitements   
+1) (Optional) Create user *adbh*  (not root user) and switch to it
+``` $ sudo su - adbh ```
+2) Create virtual envirionment (Python 2.7.\*) with name *adbh_env*
+``` $ virtualenv --python=python2 adbh_env ```
+``` $ cd adbh_env/ ```
+3) Activate the envirionment
+``` $ source ./bin/activate ```
+``` $ cd .. ```
+4) Create folder *adbh_project* inside *adbh_env*
+``` $ mkdir adbh_project ```
+``` $ cd adbh_project/ ```
+5) Clone the project from the repository
+``` $ git https://github.com/venetay/ADBHoney.git . ```
+6) Install requitements
 	(Dependance: sudo apt-get install libmysqlclient-dev python-dev)
-``` $ pip install -r requirements.txt ```   
+``` $ pip install -r requirements.txt ```
 7) Start
-``` $ python adbhoney.py ``` 
+``` $ python adbhoney.py ```
 
 ============================================================
 
-## MySQL Configuration 
+## MySQL Configuration
 
 First create an empty database named 'adbhoney'.
 ```
@@ -62,11 +62,11 @@ source mysql.sql;
 exit
 ```
 
-# MySQL plugin uses geolocation. 
-1) Download GeoLite2-ASN.mmdb and GeoLite2-City.mmdb   
-``` https://dev.maxmind.com/geoip/geoip2/geolite2/ ```   
-2) Set the right location of the databases used for geolocation in the config file 
- 
+# MySQL plugin uses geolocation.
+1) Download GeoLite2-ASN.mmdb and GeoLite2-City.mmdb
+``` https://dev.maxmind.com/geoip/geoip2/geolite2/ ```
+2) Set the right location of the databases used for geolocation in the config file
+
 
 ==================================================
 
@@ -79,28 +79,28 @@ docs/sql/sqlite3.sql:
 
 
 ===================================================
-# Start and test example 
+# Start and test example
 
-* test adb commands 
+* test adb commands
 
 ```
-sudo apt install adb 
+sudo apt install adb
 // sudo apt install android-tools-adb
 ```
 
 ---------------------------------------------------------------------
 
-terminal1:   
+terminal1:
 ``` .../ADBHoney$ python adbhoney.py ```
 
---------------------------------------------------------------------- 
+---------------------------------------------------------------------
 
-terminal2:   
+terminal2:
 ``` $ nmap 127.0.0.1 ```
 
 ```
 $ adb connect 127.0.0.1
-$ adb connect 127.0.0.1:5555  
+$ adb connect 127.0.0.1:5555
 //* daemon not running. starting it now on port 5037 *
 //* daemon started successfully *
 //connected to 127.0.0.1:5555
@@ -108,7 +108,7 @@ $ adb connect 127.0.0.1:5555
 
 ```
 $ adb devices
-//List of devices attached 
+//List of devices attached
 //emulator-5554	device
 //127.0.0.1:5555	device
 ```

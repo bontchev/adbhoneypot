@@ -11,7 +11,7 @@ import datetime
 import binascii
 import hashlib
 import socket
-import sys 
+import sys
 import os
 
 
@@ -87,7 +87,7 @@ class AdbHoneyProtocolBase(Protocol):
 
     def connectionMade(self):
         self.cfg['session'] = binascii.hexlify(os.urandom(6))
-        log('{}\t{}\tconnection start ({})'.format(self.getutctime(), self.cfg['src_addr'], 
+        log('{}\t{}\tconnection start ({})'.format(self.getutctime(), self.cfg['src_addr'],
             self.cfg['session']), self.cfg)
         localip = self.getlocalip()
         self.start = time.time()
@@ -96,7 +96,7 @@ class AdbHoneyProtocolBase(Protocol):
             'timestamp': self.getutctime(),
             'unixtime': int(self.start),
             'session': self.cfg['session'],
-            'message': 'New connection: {}:{} ({}:{}) [session: {}]'.format(self.cfg['src_addr'], 
+            'message': 'New connection: {}:{} ({}:{}) [session: {}]'.format(self.cfg['src_addr'],
                 self.cfg['src_port'], localip, self.cfg['port'], self.cfg['session']),
             'src_ip': self.cfg['src_addr'],
             'src_port': self.cfg['src_port'],
@@ -117,7 +117,7 @@ class AdbHoneyProtocolBase(Protocol):
         if reason:
             close_msg = reason.getErrorMessage()
             duration = time.time() - self.start
-            log('{}\t{}\tconnection closed ({})'.format(self.getutctime(), self.cfg['src_addr'], 
+            log('{}\t{}\tconnection closed ({})'.format(self.getutctime(), self.cfg['src_addr'],
                 self.cfg['session']), self.cfg)
             event = {
                 'eventid': 'adbhoney.session.closed',
@@ -153,7 +153,7 @@ class AdbHoneyProtocolBase(Protocol):
         states = [str_command, message.command, message.data]
         if message.arg0 in self.streams:
             if str_command == 'CLSE':
-                del self.streams[message.arg0] 
+                del self.streams[message.arg0]
             else:
                 self.streams[message.arg0].append(states)
         else:
@@ -186,7 +186,7 @@ class AdbHoneyProtocolBase(Protocol):
         return ip
 
     def dump_file_data(self, real_fname, data):
-        # TODO: real_fname, file_size 
+        # TODO: real_fname, file_size
         download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
         data_len = len(data)
         if download_limit_size and data_len > download_limit_size:
@@ -223,7 +223,7 @@ class AdbHoneyProtocolBase(Protocol):
             log('Disconnecting: Protocol version or max payload mismatch', self.cfg)
             self.transport.loseConnection()
         else:
-            self.sendCommand(protocol.CMD_CNXN, 
+            self.sendCommand(protocol.CMD_CNXN,
                          self.version,
                          self.maxPayload,
                          systemIdentityString + '\x00')
@@ -237,14 +237,14 @@ class AdbHoneyProtocolBase(Protocol):
         has been established, or a CLSE message indicating failure.
 
         An OPEN message implies an OKAY message from the connecting remote stream.
-        """ 
+        """
         if 'shell' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
-            # Send terminal prompt 
+            # Send terminal prompt
             self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '#')
-            # Move self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '') in handle_OKAY 
-            # in responce of the client. 
-            
+            # Move self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '') in handle_OKAY
+            # in responce of the client.
+
             log('{}\t{}\t{}'.format(self.getutctime(), self.cfg['src_addr'], \
                 message.data[:-1]), self.cfg)
             event = {
@@ -279,7 +279,7 @@ class AdbHoneyProtocolBase(Protocol):
 
         if 'STAT' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
-        
+
         if self.streams[remoteId][-1][1] == protocol.CMD_WRTE \
             and self.streams[remoteId][-2][1] == protocol.CMD_WRTE \
             and 'STAT' in self.streams[remoteId][-2][2]:
@@ -294,7 +294,7 @@ class AdbHoneyProtocolBase(Protocol):
 
         # Corner case for binary sending
         if self.sending_data:
-            # Look for that DATAXXXX where XXXX is the length of the data block 
+            # Look for that DATAXXXX where XXXX is the length of the data block
             # that's about to be sent (i.e. DATA\x00\x00\x01\x00)
             if 'DATA' in message.data:
                 data_index = message.data.index('DATA')
@@ -302,9 +302,9 @@ class AdbHoneyProtocolBase(Protocol):
                 self.data_file += payload_fragment
             else:
                 self.data_file += message.data
-            
+
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
-            
+
             if 'DONE' in message.data:
                 self.data_file = self.data_file[:-8]
                 self.dump_file_data(self.filename, self.data_file)
@@ -319,7 +319,7 @@ class AdbHoneyProtocolBase(Protocol):
                     dr_file = ''
                     predata = message.data.split('DATA')[0]
                     if predata:
-                        # Wished destination filename 
+                        # Wished destination filename
                         fname = predata.split(',')[0]
                     dr_file = message.data.split('DATA')[1][4:-8]
                     self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
@@ -331,10 +331,10 @@ class AdbHoneyProtocolBase(Protocol):
                     self.sending_data = True
                     predata = message.data.split('DATA')[0]
                     if predata:
-                        # Wished destination filename 
+                        # Wished destination filename
                         self.filename = predata.split(',')[0]
                     self.data_file = message.data.split('DATA')[1][4:]
-                
+
                 if 'SEND' not in message.data[:128]:
                     self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
@@ -373,15 +373,15 @@ def main():
 
     parser = ArgumentParser(version='%(prog)s version ' + __VERSION__, description='ADB Honeypot')
 
-    parser.add_argument('-a', '--addr', type=str, default=cfg_options['addr'], 
+    parser.add_argument('-a', '--addr', type=str, default=cfg_options['addr'],
         help='Address to bind to (default: {})'.format(cfg_options['addr']))
-    parser.add_argument('-p', '--port', type=int, default=cfg_options['port'], 
+    parser.add_argument('-p', '--port', type=int, default=cfg_options['port'],
         help='Port to listen on (default: {})'.format(cfg_options['port']))
-    parser.add_argument('-d', '--dlfolder', type=str, default=cfg_options['download_dir'], 
+    parser.add_argument('-d', '--dlfolder', type=str, default=cfg_options['download_dir'],
         help='Directory for the uploaded samples (default: current)')
-    parser.add_argument('-l', '--logfile', type=str, default=cfg_options['logfile'], 
+    parser.add_argument('-l', '--logfile', type=str, default=cfg_options['logfile'],
         help='Log file (default: stdout')
-    parser.add_argument('-s', '--sensor', type=str, default=cfg_options['sensor'], 
+    parser.add_argument('-s', '--sensor', type=str, default=cfg_options['sensor'],
         help='Sensor name (default: {})'.format(cfg_options['sensor']))
     parser.add_argument('-b', '--debug', action='store_true', help='Produce verbose output')
 
@@ -397,10 +397,10 @@ def main():
 
     log('Listening on {}:{}.'.format(cfg_options['addr'], cfg_options['port']), cfg_options)
     cfg_options['output_plugins'] = import_plugins(cfg_options)
-    
+
     connect = 'tcp:{}:interface={}'.format(cfg_options['port'], cfg_options['addr'])
     endpoints.serverFromString(reactor, connect).listen(ADBFactory(cfg_options))
-    reactor.run()   
+    reactor.run()
 
     # After the reactor is stoped by hitting Control-C in a terminal
     log('Exiting...', cfg_options)

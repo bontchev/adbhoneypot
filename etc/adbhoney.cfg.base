@@ -61,7 +61,7 @@ debug = false
 # Network Specific Options
 # ============================================================================
 
-# IP address to bind to when opening outgoing connections. 
+# IP address to bind to when opening outgoing connections.
 #
 # (default: 0.0.0.0)
 out_addr = 0.0.0.0

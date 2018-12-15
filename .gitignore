@@ -47,14 +47,14 @@ wheels/
 venv/
 ENV/
 
-# Log files 
+# Log files
 /log
 *.log
 
 # Config files
 *.cfg
 
-# Output files 
+# Output files
 *.out
 *.raw
 

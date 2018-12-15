@@ -7,7 +7,7 @@ class Output(object):
     """
 
     def __init__(self, general_options):
-        
+
         self.cfg = general_options
 
         if not 'sensor' in self.cfg:
