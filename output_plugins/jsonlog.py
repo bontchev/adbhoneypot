@@ -1,6 +1,8 @@
 from __future__ import print_function
+import os
 import json
 import copy
+import errno
 import core.output
 from core.config import CONFIG
 
@@ -26,5 +28,11 @@ class Output(core.output.Output):
             event_dump.pop('unixtime', None)
         else:
             event_dump = event
+        if not os.path.exists(os.path.dirname(self.outfile)) and '/' in self.outfile:
+            try:
+                os.makedirs(os.path.dirname(self.outfile))
+            except OSError as exc:
+                if exc.errno != errno.EEXIST:
+                    raise
         with open(self.outfile, 'a') as f:
             print(json.dumps(event_dump), file=f)
