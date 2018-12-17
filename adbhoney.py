@@ -11,12 +11,19 @@ import datetime
 import binascii
 import hashlib
 import socket
+import errno
 import sys
 import os
 
+__VERSION__ = '2.0.0'
 
-__VERSION__ = '1.00'
-
+def log(message, cfg):
+    if cfg['logfile'] is None:
+        print(message)
+        sys.stdout.flush()
+    else:
+        with open(cfg['logfile'], 'a') as f:
+            print(message, file=f)
 
 def stop_plugins(cfg):
     log('Stoping plugins ... ', cfg)
@@ -59,16 +66,16 @@ def write_event(event, cfg):
             log(e, cfg)
             continue
 
-def log(message, cfg):
-    if cfg['logfile'] is None:
-        print(message)
-        sys.stdout.flush()
-    else:
-        if cfg['log_path'] and not os.path.exists(cfg['log_path']):
-            os.makedirs(cfg['log_path'])
-        with open(cfg['logfile'], 'a') as f:
-            print(message, file=f)
-
+def mkdir(path):
+    if not path:
+        return
+    try:
+        os.makedirs(path)
+    except OSError, exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 class AdbHoneyProtocolBase(Protocol):
     version = protocol.VERSION
@@ -84,6 +91,20 @@ class AdbHoneyProtocolBase(Protocol):
         self.sending_data = False
         self.data_file = ''
         self.start = time.time()
+
+    def getutctime(self):
+        return datetime.datetime.utcnow().isoformat() + 'Z'
+
+    def getlocalip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('10.255.255.255', 1))
+            ip = s.getsockname()[0]
+        except:
+            ip = '127.0.0.1'
+        finally:
+            s.close()
+        return ip
 
     def connectionMade(self):
         self.cfg['session'] = binascii.hexlify(os.urandom(6))
@@ -171,31 +192,16 @@ class AdbHoneyProtocolBase(Protocol):
             log('>>>>>> {}'.format(message), self.cfg)
         self.transport.write(message.encode())
 
-    def getutctime(self):
-        return datetime.datetime.utcnow().isoformat() + 'Z'
-
-    def getlocalip(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(('10.255.255.255', 1))
-            ip = s.getsockname()[0]
-        except:
-            ip = '127.0.0.1'
-        finally:
-            s.close()
-        return ip
-
     def dump_file_data(self, real_fname, data):
-        # TODO: real_fname, file_size
         download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
         data_len = len(data)
-        if download_limit_size and data_len > download_limit_size:
-            return
-        if self.cfg['download_dir'] and not os.path.exists(self.cfg['download_dir']):
-            os.makedirs(self.cfg['download_dir'])
         shasum = hashlib.sha256(data).hexdigest()
         fname = 'data-{}.raw'.format(shasum)
         fullname = os.path.join(self.cfg['download_dir'], fname)
+        if download_limit_size and data_len > download_limit_size:
+            log('{}\t{}\tfile:{} ({} bytes) is too large.'.format(
+                self.getutctime(), self.cfg['src_addr'], real_fname, data_len), self.cfg)
+            return
         log('{}\t{}\tfile:{} - dumping {} bytes of data to {}...'.format(
             self.getutctime(), self.cfg['src_addr'], real_fname, len(data), fullname), self.cfg)
         event = {
@@ -203,20 +209,25 @@ class AdbHoneyProtocolBase(Protocol):
             'timestamp': self.getutctime(),
             'unixtime': int(time.time()),
             'session': self.cfg['session'],
-            'message': 'Downloaded file with SHA-256 {} to {}'.format(shasum, fullname),
+            'message': 'Downloaded file {} with SHA-256 {} to {}'.format(real_fname, shasum, fullname),
             'src_ip': self.cfg['src_addr'],
             'shasum': shasum,
+            'dst_path': real_fname,
             'fullname': fullname,
             'file_size': data_len,
             'sensor': self.cfg['sensor'],
         }
         write_event(event, self.cfg)
-        if not os.path.exists(fullname):
+        mkdir(self.cfg['download_dir'])
+        if os.path.exists(fullname):
+            log('File already exists, nothing written to disk.', self.cfg)
+        else:
             with open(fullname, 'wb') as f:
                 f.write(data)
 
     def handle_CNXN(self, version, maxPayload, systemIdentityString, message):
-        """Called when we get an incoming CNXN message
+        """
+	Called when we get an incoming CNXN message
         """
         systemIdentityString = self.cfg['device_id'].encode('utf8')
         if version != self.version or maxPayload < maxPayload:
@@ -224,12 +235,13 @@ class AdbHoneyProtocolBase(Protocol):
             self.transport.loseConnection()
         else:
             self.sendCommand(protocol.CMD_CNXN,
-                         self.version,
-                         self.maxPayload,
-                         systemIdentityString + '\x00')
+                             self.version,
+                             self.maxPayload,
+                             systemIdentityString + '\x00')
 
     def handle_OPEN(self, remoteId, sessionId, destination, message):
-        """Called when we receive a message indicating that the other side
+        """
+        Called when we receive a message indicating that the other side
         has a stream identified by :remoteId: that it wishes to connect to
         the named :destination: on our side.
 
@@ -238,15 +250,14 @@ class AdbHoneyProtocolBase(Protocol):
 
         An OPEN message implies an OKAY message from the connecting remote stream.
         """
-        if 'shell' in message.data:
+        if 'shell:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
             # Send terminal prompt
             self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '#')
             # Move self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '') in handle_OKAY
             # in responce of the client.
 
-            log('{}\t{}\t{}'.format(self.getutctime(), self.cfg['src_addr'], \
-                message.data[:-1]), self.cfg)
+            log('{}\t{}\t{}'.format(self.getutctime(), self.cfg['src_addr'], message.data[:-1]), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
                 'timestamp': self.getutctime(),
@@ -259,17 +270,18 @@ class AdbHoneyProtocolBase(Protocol):
             }
             write_event(event, self.cfg)
 
-        elif 'sync' in message.data:
+        elif 'sync:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
         else:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
             self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
 
     def handle_OKAY(self, remoteId, localId, data, message):
-        """Called when the stream on the remote side is ready for write.
+        """
+        Called when the stream on the remote side is ready for write.
         @param data: should be ''
         """
-        if 'shell' in self.streams[remoteId][0][2]:
+        if 'shell:' in self.streams[remoteId][0][2]:
             self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
 
     def handle_CLSE(self, remoteId, localId, data, message):
@@ -280,9 +292,9 @@ class AdbHoneyProtocolBase(Protocol):
         if 'STAT' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
-        if self.streams[remoteId][-1][1] == protocol.CMD_WRTE \
-            and self.streams[remoteId][-2][1] == protocol.CMD_WRTE \
-            and 'STAT' in self.streams[remoteId][-2][2]:
+        if self.streams[remoteId][-1][1] == protocol.CMD_WRTE and \
+           self.streams[remoteId][-2][1] == protocol.CMD_WRTE and \
+           'STAT' in self.streams[remoteId][-2][2]:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
             # Because ADB state machine sometimes we need to send duplicate messages
             self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'STAT\x01\x00\x00\x00')
@@ -360,10 +372,11 @@ def main():
     cfg_options['addr'] = CONFIG.get('honeypot', 'out_addr', fallback='0.0.0.0')
     cfg_options['port'] = CONFIG.getint('honeypot', 'listen_port', fallback=5555)
     cfg_options['download_dir'] = CONFIG.get('honeypot', 'download_path', fallback='')
-    cfg_options['log_path'] = CONFIG.get('honeypot', 'log_path', fallback='')
     log_name = CONFIG.get('honeypot', 'log_filename', fallback='')
     if log_name:
-        cfg_options['logfile'] = os.path.join(CONFIG.get('honeypot', 'log_path', fallback=''), log_name)
+        logdir = CONFIG.get('honeypot', 'log_path', fallback='')
+        mkdir(logdir)
+        cfg_options['logfile'] = os.path.join(logdir, log_name)
     else:
         cfg_options['logfile'] = None
     cfg_options['sensor'] = CONFIG.get('honeypot', 'sensor_name', fallback=socket.gethostname())
@@ -374,15 +387,15 @@ def main():
     parser = ArgumentParser(version='%(prog)s version ' + __VERSION__, description='ADB Honeypot')
 
     parser.add_argument('-a', '--addr', type=str, default=cfg_options['addr'],
-        help='Address to bind to (default: {})'.format(cfg_options['addr']))
+                        help='Address to bind to (default: {})'.format(cfg_options['addr']))
     parser.add_argument('-p', '--port', type=int, default=cfg_options['port'],
-        help='Port to listen on (default: {})'.format(cfg_options['port']))
+                        help='Port to listen on (default: {})'.format(cfg_options['port']))
     parser.add_argument('-d', '--dlfolder', type=str, default=cfg_options['download_dir'],
-        help='Directory for the uploaded samples (default: current)')
+                        help='Directory for the uploaded samples (default: current)')
     parser.add_argument('-l', '--logfile', type=str, default=cfg_options['logfile'],
-        help='Log file (default: stdout')
+                        help='Log file (default: stdout)')
     parser.add_argument('-s', '--sensor', type=str, default=cfg_options['sensor'],
-        help='Sensor name (default: {})'.format(cfg_options['sensor']))
+                        help='Sensor name (default: {})'.format(cfg_options['sensor']))
     parser.add_argument('-b', '--debug', action='store_true', help='Produce verbose output')
 
     args = parser.parse_args()

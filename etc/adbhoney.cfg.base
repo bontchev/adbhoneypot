@@ -28,15 +28,15 @@
 # (default: log)
 log_path = log
 
-# Log file are name
+# Log file name
 #
 # (default: stdout)
-#log_filename = adbhoney.log
+log_filename =
 
 # Directory where to save downloaded artifacts in.
 #
-# (default: dl)
-download_path = dl
+# (default: current)
+download_path =
 
 # Maximum file size (in bytes) for downloaded files to be stored in 'download_path'.
 # A value of 0 means no limit. If the file size is known to be too big from the start,
@@ -45,7 +45,9 @@ download_path = dl
 # (default: 0)
 download_limit_size = 0
 
+# TODO:
 # Whether to download the files referenced by their URLs in wget/curl/tftp arguments
+# (default: true)
 download_files = true
 
 # Fake architectures/OS
@@ -66,16 +68,17 @@ debug = false
 # (default: 0.0.0.0)
 out_addr = 0.0.0.0
 
-
 # Port to listen for incoming connections.
 #
 # (default: 5555)
 listen_port = 5555
 
-
+# TODO:
 # Enable to log the public IP of the honeypot (useful if listening on 127.0.0.1)
 # IP address is obtained by querying http://myip.threatstream.com
-#report_public_ip = false
+#
+# (default: false)
+report_public_ip = false
 
 
 # ============================================================================
@@ -89,31 +92,10 @@ listen_port = 5555
 
 # JSON based logging module
 #
-[output_jsonlog]
-enabled = true
-logfile = log/adbhoney.json
-epoch_timestamp = false
-
-# Supports logging to Elasticsearch
-#
-#[output_elasticsearch]
-#enabled = false
-#host = localhost
-#port = 9200
-#index = adbhoney
-#type = adbhoney
-#pipeline = geoip
-
-# Text output
-# This writes audit log entries to a text file
-#
-# Format can be:
-# text, cef
-#
-#[output_textlog]
-#enabled = false
-#logfile = logs/audit.log
-#format = text
+#[output_jsonlog]
+#enabled = true
+#logfile = log/adbhoney.json
+#epoch_timestamp = true
 
 # MySQL logging module
 # Database structure for this module is supplied in docs/sql/mysql.sql
@@ -138,6 +120,28 @@ epoch_timestamp = false
 #virustotal = true
 #virustotal_api_key = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
+# TODO:
+
+# Supports logging to Elasticsearch
+#
+#[output_elasticsearch]
+#enabled = false
+#host = localhost
+#port = 9200
+#index = adbhoney
+#type = adbhoney
+#pipeline = geoip
+
+# Text output
+# This writes audit log entries to a text file
+#
+# Format can be:
+# text, cef
+#
+#[output_textlog]
+#enabled = false
+#logfile = logs/audit.log
+#format = text
 
 # SQLite3 logging module
 #

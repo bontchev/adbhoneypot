@@ -32,6 +32,8 @@ wheels/
 .project
 .pyproject
 
+.vscode
+
 # DataBase files
 *.db
 *.sqlite
@@ -46,9 +48,10 @@ wheels/
 .venv
 venv/
 ENV/
+adbh_env/
 
 # Log files
-/log
+log/
 *.log
 
 # Config files
