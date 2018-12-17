@@ -24,5 +24,7 @@ class Output(core.output.Output):
             # We need 'unixtime' value in some other plugins
             event_dump = copy.deepcopy(event)
             event_dump.pop('unixtime', None)
+        else:
+            event_dump = event
         with open(self.outfile, 'a') as f:
             print(json.dumps(event_dump), file=f)
