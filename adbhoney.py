@@ -253,12 +253,13 @@ class AdbHoneyProtocolBase(Protocol):
         if 'shell:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
             # Send terminal prompt
-            self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '')
-            # self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '#')
-            self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
+            self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '#')
             # Move self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '') in handle_OKAY
             # in responce of the client.
 
+            # Find last valid shell string in message.data
+            msg  = message.data.split('shell:')[-1]
+            print("!!!!!!!!!!!!!!!!", msg)
             log('{}\t{}\t{}'.format(self.getutctime(), self.cfg['src_addr'], message.data[:-1]), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
@@ -283,9 +284,8 @@ class AdbHoneyProtocolBase(Protocol):
         Called when the stream on the remote side is ready for write.
         @param data: should be ''
         """
-        pass
-        # if 'shell:' in self.streams[remoteId][0][2]:
-        #     self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
+        if 'shell:' in self.streams[remoteId][0][2]:
+            self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
 
     def handle_CLSE(self, remoteId, localId, data, message):
         self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
