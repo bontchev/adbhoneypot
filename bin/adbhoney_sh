@@ -1,0 +1,123 @@
+#!/bin/bash
+
+ADB_VIRTUAL_ENV_DEFAULT=adbh_env
+COWRIE_VIRTUAL_ENV="$(config_get COWRIE_VIRTUAL_ENV)";
+
+script_dir=$(dirname "$(readlink -f "$0")")
+
+adbhoney_directory() {
+    if [[ "$0" = /* ]]
+    then
+        ADBHONEYDIR=$(dirname $0)/..
+    else
+        ADBHONEYDIR=$(dirname $PWD/$0)/..
+    fi
+    ADBHONEYDIR=$(cd ${ADBHONEYDIR} && pwd -P 2>/dev/null || pwd)
+}
+
+activate_venv() {
+    # Activate Python virtual environment
+    VENV="$1"
+    if [ ! -f "$VENV/bin/activate" ]
+    then
+        return 1
+    fi
+    . $VENV/bin/activate
+    return 0
+}
+
+adbhoney_status() {
+    # Print status
+    PID=$(cat ${PIDFILE} 2>/dev/null || echo "")
+    if [ -n "$PID" ]; then
+        if ps -p "$PID" 2>&1 >/dev/null; then
+            echo "adbhoney is running (PID: ${PID})."
+        else
+            echo "adbhoney is not running (PID: ${PID})."
+            echo "Removing stale PID file"
+            rm -f ${PIDFILE}
+        fi
+    else
+        echo "adbhoney is not running."
+    fi
+}
+
+adbhoney_start() {
+    # Start ADBhoney
+    PID=$(cat ${PIDFILE} 2>/dev/null || echo -n "")
+    if [ -z "$PID" ]; then
+        echo "Starting adbhoney ..."
+        cd ${script_dir} && cd ..
+        nohup python adbhoney.py &>/dev/null & echo $! > ${ADBHONEYDIR}/${PIDFILE}
+    fi
+}
+
+adbhoney_stop() {
+    # Stop ADBhoney
+    PID=$(cat ${PIDFILE} 2>/dev/null || echo -n "")
+    if [ -n "$PID" ]; then
+        echo -n "Stopping adbhoney..."
+        if kill -TERM $PID; then
+            ((t = 60))
+            while ((t > 1)); do
+                sleep 1
+                if kill -0 $PID >/dev/null 2>&1; then
+                    ((t -= 1))
+                else
+                    echo "terminated."
+                    echo "Removing stale PID file"
+                    rm -f ${PIDFILE}
+                    return
+                fi
+            done
+            kill -KILL $PID
+            echo "killed."
+        else
+            echo -e "\nRemoving stale PID file"
+            rm -f ${PIDFILE}
+        fi
+    else
+        echo "adbhoney is not running."
+    fi
+}
+
+adbhoney_usage() {
+    echo "usage: $0 <start|stop|restart|status>"
+}
+
+################################################################################
+## Main script
+################################################################################
+
+if [ "$#" = 0 ]
+then
+    adbhoney_usage
+    exit 1
+fi
+
+adbhoney_directory $0
+cd ${ADBHONEYDIR}
+PIDFILE=var/run/adbhoney.pid
+set -e
+
+key=$1
+shift 1
+case $key in
+    stop)
+        adbhoney_stop $*
+        ;;
+    start)
+        adbhoney_start $*
+        ;;
+    restart)
+        adbhoney_stop $*
+        adbhoney_start $*
+        ;;
+    status)
+        adbhoney_status $*
+        ;;
+    *)
+        adbhoney_usage
+        exit 1
+        ;;
+esac
