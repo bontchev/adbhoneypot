@@ -265,19 +265,18 @@ class AdbHoneyProtocolBase(Protocol):
 
             # Find last valid shell string in message.data
             msg  = message.data.split('shell:')[-1]
-            print("!!!!!!!!!!!!!!!!", msg)
-
+            shell_msg = 'shell:' + msg
             unixtime = time.time()
             humantime = self.getutctime(unixtime)
-            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], message.data[:-1]), self.cfg)
+            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], shell_msg), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
                 'timestamp': humantime,
                 'unixtime': unixtime,
                 'session': self.cfg['session'],
-                'message': message.data[:-1],
+                'message': shell_msg,
                 'src_ip': self.cfg['src_addr'],
-                'input': message.data[6:-1],
+                'input': msg,
                 'sensor': self.cfg['sensor']
             }
             write_event(event, self.cfg)
