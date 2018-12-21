@@ -92,8 +92,8 @@ class AdbHoneyProtocolBase(Protocol):
         self.data_file = ''
         self.start = time.time()
 
-    def getutctime(self):
-        return datetime.datetime.utcnow().isoformat() + 'Z'
+    def getutctime(self, unixtime):
+        return datetime.datetime.utcfromtimestamp(unixtime).isoformat() + 'Z'
 
     def getlocalip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -108,14 +108,16 @@ class AdbHoneyProtocolBase(Protocol):
 
     def connectionMade(self):
         self.cfg['session'] = binascii.hexlify(os.urandom(6))
-        log('{}\t{}\tconnection start ({})'.format(self.getutctime(), self.cfg['src_addr'],
+        unixtime = time.time()
+        humantime = self.getutctime(unixtime)
+        self.start = unixtime
+        log('{}\t{}\tconnection start ({})'.format(humantime, self.cfg['src_addr'],
             self.cfg['session']), self.cfg)
         localip = self.getlocalip()
-        self.start = time.time()
         event = {
             'eventid': 'adbhoney.session.connect',
-            'timestamp': self.getutctime(),
-            'unixtime': int(self.start),
+            'timestamp': humantime,
+            'unixtime': unixtime,
             'session': self.cfg['session'],
             'message': 'New connection: {}:{} ({}:{}) [session: {}]'.format(self.cfg['src_addr'],
                 self.cfg['src_port'], localip, self.cfg['port'], self.cfg['session']),
@@ -137,13 +139,15 @@ class AdbHoneyProtocolBase(Protocol):
     def connectionLost(self, reason):
         if reason:
             close_msg = reason.getErrorMessage()
-            duration = time.time() - self.start
-            log('{}\t{}\tconnection closed ({})'.format(self.getutctime(), self.cfg['src_addr'],
+            unixtime = time.time()
+            humantime = self.getutctime(unixtime)
+            duration = unixtime - self.start
+            log('{}\t{}\tconnection closed ({})'.format(humantime, self.cfg['src_addr'],
                 self.cfg['session']), self.cfg)
             event = {
                 'eventid': 'adbhoney.session.closed',
-                'timestamp': self.getutctime(),
-                'unixtime': int(time.time()),
+                'timestamp': humantime,
+                'unixtime': unixtime,
                 'session': self.cfg['session'],
                 'message': '{} Duration {} second(s).'.format(close_msg, int(round(duration))),
                 'src_ip': self.cfg['src_addr'],
@@ -198,16 +202,18 @@ class AdbHoneyProtocolBase(Protocol):
         shasum = hashlib.sha256(data).hexdigest()
         fname = 'data-{}.raw'.format(shasum)
         fullname = os.path.join(self.cfg['download_dir'], fname)
+        unixtime = time.time()
+        humantime = self.getutctime(unixtime)
         if download_limit_size and data_len > download_limit_size:
             log('{}\t{}\tfile:{} ({} bytes) is too large.'.format(
-                self.getutctime(), self.cfg['src_addr'], real_fname, data_len), self.cfg)
+                humantime, self.cfg['src_addr'], real_fname, data_len), self.cfg)
             return
         log('{}\t{}\tfile:{} - dumping {} bytes of data to {}...'.format(
-            self.getutctime(), self.cfg['src_addr'], real_fname, len(data), fullname), self.cfg)
+            humantime, self.cfg['src_addr'], real_fname, data_len, fullname), self.cfg)
         event = {
             'eventid': 'adbhoney.session.file_upload',
-            'timestamp': self.getutctime(),
-            'unixtime': int(time.time()),
+            'timestamp': humantime,
+            'unixtime': unixtime,
             'session': self.cfg['session'],
             'message': 'Downloaded file {} with SHA-256 {} to {}'.format(real_fname, shasum, fullname),
             'src_ip': self.cfg['src_addr'],
@@ -259,11 +265,13 @@ class AdbHoneyProtocolBase(Protocol):
             # Move self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '') in handle_OKAY
             # in responce of the client.
 
-            log('{}\t{}\t{}'.format(self.getutctime(), self.cfg['src_addr'], message.data[:-1]), self.cfg)
+            unixtime = time.time()
+            humantime = self.getutctime(unixtime)
+            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], message.data[:-1]), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
-                'timestamp': self.getutctime(),
-                'unixtime': int(time.time()),
+                'timestamp': humantime,
+                'unixtime': unixtime,
                 'session': self.cfg['session'],
                 'message': message.data[:-1],
                 'src_ip': self.cfg['src_addr'],
