@@ -268,15 +268,15 @@ class AdbHoneyProtocolBase(Protocol):
             shell_msg = 'shell:' + msg
             unixtime = time.time()
             humantime = self.getutctime(unixtime)
-            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], shell_msg), self.cfg)
+            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], shell_msg[:-1]), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
                 'timestamp': humantime,
                 'unixtime': unixtime,
                 'session': self.cfg['session'],
-                'message': shell_msg,
+                'message': shell_msg[:-1],
                 'src_ip': self.cfg['src_addr'],
-                'input': msg,
+                'input': msg[:-1],
                 'sensor': self.cfg['sensor']
             }
             write_event(event, self.cfg)
