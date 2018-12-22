@@ -2,5 +2,5 @@ configparser==3.5.0
 requests==2.20.1
 geoip2==2.7.0
 maxminddb==1.3.0
-mysqlclient==1.3.12  # If this fails, see the documentation docs/sql/README.md (sudo apt-get install libmysqlclient-dev)
-Twisted==18.9.0		# maybe sudo apt-get install python-twisted
+mysqlclient==1.3.12  # If this fails, see the documentation docs/sql/README.md or try `sudo apt-get install libmysqlclient-dev`
+Twisted==18.9.0		 # If this fails, try sudo apt-get install python-twisted
