@@ -63,7 +63,7 @@ adbhoney_start() {
     if [ -z "$PID" ]; then
         echo "Starting ADBhoneypot ..."
         if [ ! -z "$VIRTUAL_ENV" ]; then
-            echo 2>&1 "Using activated Python virtual environment \"$VIRTUAL_ENV\""
+            echo 2>&1 "Using activated Python virtual environment \"$VIRTUAL_ENV\". ADBhoneypot is started successfully."
             nohup python ${ADBHONEYDIR}/adbhoney.py &>/dev/null & echo $! > ${ADBHONEYDIR}/${PIDFILE}
         elif activate_venv "$ADB_VIRTUAL_ENV"; then
             nohup python ${ADBHONEYDIR}/adbhoney.py &>/dev/null & echo $! > ${ADBHONEYDIR}/${PIDFILE}
