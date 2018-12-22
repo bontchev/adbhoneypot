@@ -52,4 +52,4 @@ Geir Sporsheim - [protocol.py](https://github.com/sporsh/twisted-adb/blob/master
 
 --------------------------------------------------------------------------------
 
-## The installation guide can be found [there](INSTALL.md)
+## The installation guide can be found [here](INSTALL.md).
