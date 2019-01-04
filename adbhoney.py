@@ -4,8 +4,8 @@ from __future__ import print_function
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet import reactor, endpoints
 from argparse import ArgumentParser
-from adb import protocol
 from core.config import CONFIG
+from adb import protocol
 import time
 import datetime
 import binascii
