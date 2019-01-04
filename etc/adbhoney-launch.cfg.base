@@ -11,6 +11,6 @@
 
 # Either activate virtual enviroment before starting ADBhoneypot or
 # set ADB_VIRTUAL_ENV appropriate venv path.
-# Example: ADB_VIRTUAL_ENV=/home/user/adbh_env
+# Example path: ADB_VIRTUAL_ENV=/home/user/adbh_env
 #
 ADB_VIRTUAL_ENV=/home/adbh/adbhoneypot/adbh_env
