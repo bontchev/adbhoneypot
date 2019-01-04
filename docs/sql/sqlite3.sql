@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS `commands` (
   `id` INTEGER PRIMARY KEY,
   `input` varchar(3000) NOT NULL,
   `inputhash` varchar(66) NOT NULL
-);   
+);
 
 CREATE TABLE IF NOT EXISTS `connections` (
   `id` INTEGER PRIMARY KEY,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS `connections` (
   `org_asn` int(11) DEFAULT NULL,
   `local_host` varchar(15) DEFAULT NULL,
   `remote_port` int(11) DEFAULT NULL
-);   
+);
 
 CREATE TABLE IF NOT EXISTS `downloads` (
   `id` INTEGER PRIMARY KEY,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS `downloads` (
   `filesize` int(11) DEFAULT NULL,
   `download_sha_hash` varchar(65) DEFAULT NULL,
   `outfile` text
-);   
+);
 
 CREATE TABLE IF NOT EXISTS `input` (
   `id` INTEGER PRIMARY KEY,
@@ -36,12 +36,12 @@ CREATE TABLE IF NOT EXISTS `input` (
   `timestamp` datetime NOT NULL,
   `success` tinyint(1) NOT NULL,
   `input` int(11) NOT NULL
-);   
+);
 
 CREATE TABLE IF NOT EXISTS `sensors` (
   `id` INTEGER PRIMARY KEY,
   `name` varchar(255) DEFAULT NULL
-);   
+);
 
 CREATE TABLE IF NOT EXISTS `virustotals` (
   `virustotal` INTEGER PRIMARY KEY,
@@ -49,12 +49,12 @@ CREATE TABLE IF NOT EXISTS `virustotals` (
   `virustotal_timestamp` int(11) NOT NULL,
   `virustotal_permalink` text NOT NULL
 );
-   
+
 CREATE TABLE IF NOT EXISTS `virustotalscans` (
   `virustotalscan` INTEGER PRIMARY KEY,
   `virustotal` int(11) NOT NULL,
   `virustotalscan_scanner` varchar(256) NOT NULL,
   `virustotalscan_result` varchar(512) DEFAULT NULL
-);   
+);
 
 

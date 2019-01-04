@@ -32,12 +32,14 @@ wheels/
 .project
 .pyproject
 
+# Visual Studio Code project
+.vscode
+
 # DataBase files
 *.db
 *.sqlite
 *.sqlite3
 *.sqlite3-journal
-*.mmdb
 
 # dotenv
 .env
@@ -46,18 +48,29 @@ wheels/
 .venv
 venv/
 ENV/
+adbh_env/
 
-# Log files 
-/log
+# Log files
+log/
 *.log
 
 # Config files
 *.cfg
 
-# Output files 
+# Output files
 *.out
 *.raw
 
 # Download files
 dl/
 downloads/
+
+# Geolocation data
+*.mmdb
+.geoipupdate.lock
+
+# Logrotate
+logrotate.*
+
+# PID
+*.pid

@@ -49,7 +49,7 @@ class AdbMessage(object):
         if len(data) < header.data_length:
             return
         message = cls(header.command, header.arg0, header.arg1, data)
-        # TODO: Sending commands twice broke message CRC? May be this check is not needed when AdbMessage is used in a honeypot. 
+        # TODO: Sending commands twice broke message CRC? May be this check is not needed when AdbMessage is used in a honeypot.
         # message.validate(header)
         return message, data[header.data_length:]
 
