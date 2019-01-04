@@ -4,8 +4,8 @@ from __future__ import print_function
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet import reactor, endpoints
 from argparse import ArgumentParser
-from adb import protocol
 from core.config import CONFIG
+from adb import protocol
 import time
 import datetime
 import binascii
@@ -292,7 +292,7 @@ class AdbHoneyProtocolBase(Protocol):
         Called when the stream on the remote side is ready for write.
         @param data: should be ''
         """
-        if 'shell:' in self.streams[remoteId][0][2]:
+        if 'shell' in self.streams[remoteId][0][2]:
             self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
 
     def handle_CLSE(self, remoteId, localId, data, message):
