@@ -5,9 +5,11 @@ ADBhoneypot - Twisted implementation.
 --------------------------------------------------------------------------------
 
 ## Disclaimer
-I’ve been working on implementig output plug-ins and configuration file functionality in my [forked]() repository of [ADBHoney](https://github.com/huuck/ADBHoney). 
+I’ve been working on implementig output plug-ins and configuration file 
+functionality in my forked repository of [ADBHoney](https://github.com/huuck/ADBHoney). 
 However, in one moment I completely rewrite the project in order to make the network 
-communication based on [Twisted](https://twistedmatrix.com) framework, which is an event-driven networking engine written in Python. 
+communication based on [Twisted](https://twistedmatrix.com) framework, 
+which is an event-driven networking engine written in Python. 
 To distinguish this from the other implementation I created this repository.
 
 --------------------------------------------------------------------------------
@@ -52,4 +54,4 @@ Geir Sporsheim - [protocol.py](https://github.com/sporsh/twisted-adb/blob/master
 
 --------------------------------------------------------------------------------
 
-## The installation guide can be found [here](INSTALL.md).
+## The installation guide can be found [there](INSTALL.md).
