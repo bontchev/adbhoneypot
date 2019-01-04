@@ -13,4 +13,4 @@
 # set ADB_VIRTUAL_ENV appropriate venv path.
 # Example: ADB_VIRTUAL_ENV=/home/user/adbh_env
 #
-#ADB_VIRTUAL_ENV=adbh_env
+ADB_VIRTUAL_ENV=/home/adbh/adbhoneypot/adbh_env

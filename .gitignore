@@ -40,7 +40,6 @@ wheels/
 *.sqlite
 *.sqlite3
 *.sqlite3-journal
-*.mmdb
 
 # dotenv
 .env
@@ -65,3 +64,13 @@ log/
 # Download files
 dl/
 downloads/
+
+# Geolocation data
+*.mmdb
+.geoipupdate.lock
+
+# Logrotate
+logrotate.*
+
+# PID
+*.pid

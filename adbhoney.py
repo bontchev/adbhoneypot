@@ -3,8 +3,8 @@
 from __future__ import print_function
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet import reactor, endpoints
-from adb import protocol
 from argparse import ArgumentParser
+from adb import protocol
 from core.config import CONFIG
 import time
 import datetime
@@ -38,7 +38,6 @@ def import_plugins(cfg):
     # Load output modules (inspired by the Cowrie honeypot)
     log('Loading plugins...', cfg)
     output_plugins = []
-    sensor = cfg['sensor']
     general_options = cfg
     for x in CONFIG.sections():
         if not x.startswith('output_'):
@@ -76,6 +75,7 @@ def mkdir(path):
             pass
         else:
             raise
+
 
 class AdbHoneyProtocolBase(Protocol):
     version = protocol.VERSION
@@ -233,7 +233,7 @@ class AdbHoneyProtocolBase(Protocol):
 
     def handle_CNXN(self, version, maxPayload, systemIdentityString, message):
         """
-	Called when we get an incoming CNXN message
+        Called when we get an incoming CNXN message
         """
         systemIdentityString = self.cfg['device_id'].encode('utf8')
         if version != self.version or maxPayload < maxPayload:
@@ -375,6 +375,7 @@ class ADBFactory(Factory):
         self.options['src_addr'] = addr.host
         self.options['src_port'] = addr.port
         return AdbHoneyProtocolBase(self.options)
+
 
 def main():
 

@@ -87,7 +87,6 @@ adbhoney_stop() {
                     ((t -= 1))
                 else
                     echo "terminated."
-                    echo "Removing stale PID file"
                     rm -f ${PIDFILE}
                     return
                 fi

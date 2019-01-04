@@ -27,16 +27,16 @@ of the device by using combination of the following commands.
 For now the honeypot accepts:
 
 * `adb connect host[:port]` - Connect to a device over TCP/IP. If you do not specify a port,
-5555 is used by default;
+  5555 is used by default.
 
 * `adb disconnect [host | host:port]` - Disconnect from the specified TCP/IP device running
-on the specified port. If you do not specify a host or a port, then all devices are disconnected
-from all TCP/IP ports. If you specify a host, but not a port, the default port 5555 is used.
+  on the specified port. If you do not specify a host or a port, then all devices are disconnected
+  from all TCP/IP ports. If you specify a host, but not a port, the default port 5555 is used.
 
-* `adb shell command` - Issue a shell command in the target device and then exit the remote shell;
+* `adb shell command` - Issue a shell command in the target device and then exit the remote shell.
 
 * `adb push local_filepath remote_fiepath` - Copy files and directories from the local device
-(computer) to a remote location on the device.
+  (computer) to a remote location on the device.
 
 --------------------------------------------------------------------------------
 

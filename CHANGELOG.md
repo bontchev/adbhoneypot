@@ -1,4 +1,6 @@
-Release 2.0.0
+# Version History
+
+## Release 2.0.0
 
 * Honeypot rewritten from scratch based on the Twisted framework
 * Implemented config file
