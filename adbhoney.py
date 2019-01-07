@@ -76,6 +76,9 @@ def mkdir(path):
         else:
             raise
 
+def getutctime(unixtime):
+        return datetime.datetime.utcfromtimestamp(unixtime).isoformat() + 'Z'
+
 
 class AdbHoneyProtocolBase(Protocol):
     version = protocol.VERSION
@@ -92,9 +95,6 @@ class AdbHoneyProtocolBase(Protocol):
         self.data_file = ''
         self.start = time.time()
 
-    def getutctime(self, unixtime):
-        return datetime.datetime.utcfromtimestamp(unixtime).isoformat() + 'Z'
-
     def getlocalip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -109,7 +109,7 @@ class AdbHoneyProtocolBase(Protocol):
     def connectionMade(self):
         self.cfg['session'] = binascii.hexlify(os.urandom(6))
         unixtime = time.time()
-        humantime = self.getutctime(unixtime)
+        humantime = getutctime(unixtime)
         self.start = unixtime
         log('{}\t{}\tconnection start ({})'.format(humantime, self.cfg['src_addr'],
             self.cfg['session']), self.cfg)
@@ -140,7 +140,7 @@ class AdbHoneyProtocolBase(Protocol):
         if reason:
             close_msg = reason.getErrorMessage()
             unixtime = time.time()
-            humantime = self.getutctime(unixtime)
+            humantime = getutctime(unixtime)
             duration = unixtime - self.start
             log('{}\t{}\tconnection closed ({})'.format(humantime, self.cfg['src_addr'],
                 self.cfg['session']), self.cfg)
@@ -203,7 +203,7 @@ class AdbHoneyProtocolBase(Protocol):
         fname = 'data-{}.raw'.format(shasum)
         fullname = os.path.join(self.cfg['download_dir'], fname)
         unixtime = time.time()
-        humantime = self.getutctime(unixtime)
+        humantime = getutctime(unixtime)
         if download_limit_size and data_len > download_limit_size:
             log('{}\t{}\tfile:{} ({} bytes) is too large.'.format(
                 humantime, self.cfg['src_addr'], real_fname, data_len), self.cfg)
@@ -267,7 +267,7 @@ class AdbHoneyProtocolBase(Protocol):
             msg  = message.data.split('shell:')[-1]
             shell_msg = 'shell:' + msg
             unixtime = time.time()
-            humantime = self.getutctime(unixtime)
+            humantime = getutctime(unixtime)
             log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], shell_msg[:-1]), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
