@@ -8,7 +8,6 @@ import requests
 import hashlib
 import core.output
 from core.config import CONFIG
-from adbhoney import log, getutctime, mkdir
 
 
 class Output(core.output.Output):
@@ -234,45 +233,6 @@ class Output(core.output.Output):
 
     def _emulate_command(self, command):
         # TODO: implement the logic
-        # TODO: echo
-        # TODO: database logging
-        # This code downloads files from [busybox] wget and curl
-        download_files = CONFIG.getboolean('honeypot', 'download_files', fallback=True)
-        if download_files and ('wget' in command or 'curl' in command):
-            dl_cmd = command.replace('busybox', '').replace('wget', '').replace('curl', '')
-            dl_link = dl_cmd.strip().split(' ')[0].strip()
-            try:
-                r = requests.get(dl_link)
-            except Exception as e:
-                self._local_log(e)
-                return False
-            if r.status_code == 200:
-                download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
-                dl_len = int(r.headers.get('Content-Length'))
-                unixtime = time.time()
-                humantime = getutctime(unixtime)
-                if dl_len > download_limit_size and download_limit_size != 0:
-                    self._local_log('{}\tfile:{} ({} bytes) is too large.'.format(
-                                                                humantime, dl_link, dl_len))
-                    return False
-                else:
-                    data = r.content
-                    shasum = hashlib.sha256(data).hexdigest()
-                    fname = 'data-{}.raw'.format(shasum)
-                    fullname = os.path.join(self.cfg['download_dir'], fname)
-                    mkdir(self.cfg['download_dir'])
-                    if os.path.exists(fullname):
-                        self._local_log('File already exists, nothing written to disk.')
-                    else:
-                        with open(fullname, 'wb') as f:
-                            f.write(data)
-                        log('{}\tfile:{} - dumping {} bytes of data to {}...'.format(
-                            humantime, dl_link, dl_len, fullname), self.cfg)
-                        if self.virustotal:
-                            self._upload_event_vt(shasum)
-            else:
-                return False
-
         return False
 
     def _input_event(self, event):
