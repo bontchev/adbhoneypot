@@ -10,6 +10,7 @@ import time
 import datetime
 import binascii
 import hashlib
+import requests
 import socket
 import errno
 import sys
@@ -79,6 +80,17 @@ def mkdir(path):
 def getutctime(unixtime):
         return datetime.datetime.utcfromtimestamp(unixtime).isoformat() + 'Z'
 
+def getlocalip():
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('10.255.255.255', 1))
+            ip = s.getsockname()[0]
+        except:
+            ip = '127.0.0.1'
+        finally:
+            s.close()
+        return ip
+
 
 class AdbHoneyProtocolBase(Protocol):
     version = protocol.VERSION
@@ -93,18 +105,8 @@ class AdbHoneyProtocolBase(Protocol):
         self.filename = 'tmp'
         self.sending_data = False
         self.data_file = ''
+        self.large_data_size = False
         self.start = time.time()
-
-    def getlocalip(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(('10.255.255.255', 1))
-            ip = s.getsockname()[0]
-        except:
-            ip = '127.0.0.1'
-        finally:
-            s.close()
-        return ip
 
     def connectionMade(self):
         self.cfg['session'] = binascii.hexlify(os.urandom(6))
@@ -113,7 +115,7 @@ class AdbHoneyProtocolBase(Protocol):
         self.start = unixtime
         log('{}\t{}\tconnection start ({})'.format(humantime, self.cfg['src_addr'],
             self.cfg['session']), self.cfg)
-        localip = self.getlocalip()
+        localip = getlocalip()
         event = {
             'eventid': 'adbhoney.session.connect',
             'timestamp': humantime,
@@ -166,7 +168,7 @@ class AdbHoneyProtocolBase(Protocol):
         return message
 
     def dispatchMessage(self, message):
-        if self.cfg['debug']:
+        if self.cfg['debug'] and not self.large_data_size:
             string = str(message)
             if len(string) > 96:
                 log('<<<<<< {} ...... {}'.format(string[0:64], string[-32:]), self.cfg)
@@ -192,22 +194,17 @@ class AdbHoneyProtocolBase(Protocol):
     def sendCommand(self, command, arg0, arg1, data):
         #TODO: split data into chunks of MAX_PAYLOAD ?
         message = protocol.AdbMessage(command, arg0, arg1, data)
-        if self.cfg['debug']:
+        if self.cfg['debug'] and not self.large_data_size:
             log('>>>>>> {}'.format(message), self.cfg)
         self.transport.write(message.encode())
 
     def dump_file_data(self, real_fname, data):
-        download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
         data_len = len(data)
         shasum = hashlib.sha256(data).hexdigest()
         fname = 'data-{}.raw'.format(shasum)
         fullname = os.path.join(self.cfg['download_dir'], fname)
         unixtime = time.time()
         humantime = getutctime(unixtime)
-        if download_limit_size and data_len > download_limit_size:
-            log('{}\t{}\tfile:{} ({} bytes) is too large.'.format(
-                humantime, self.cfg['src_addr'], real_fname, data_len), self.cfg)
-            return
         log('{}\t{}\tfile:{} - dumping {} bytes of data to {}...'.format(
             humantime, self.cfg['src_addr'], real_fname, data_len, fullname), self.cfg)
         event = {
@@ -230,6 +227,67 @@ class AdbHoneyProtocolBase(Protocol):
         else:
             with open(fullname, 'wb') as f:
                 f.write(data)
+
+    def download_shell_links(self, command):
+        # This code downloads files from [busybox] wget and curl
+        download_files = CONFIG.getboolean('honeypot', 'download_files', fallback=True)
+        if download_files and ('wget' in command or 'curl' in command):
+            dl_cmd = command.replace('busybox', '').replace('wget', '').replace('curl', '')
+            dl_link = dl_cmd.strip().split(' ')[0].strip()
+            real_fname = dl_link.split('/')[-1]
+            try:
+                r = requests.get(dl_link, stream=True)
+            except Exception as e:
+                log(e, self.cfg)
+                r = None
+
+            if r and r.status_code == 200:
+                download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
+                unixtime = time.time()
+                humantime = getutctime(unixtime)
+                dl_len = 0
+                file_data = ''
+                save_file = False
+                for chunk in r.iter_content(chunk_size=100000):
+                    dl_len += len(chunk)
+                    if dl_len <= download_limit_size or download_limit_size == 0:
+                        file_data += chunk
+                        save_file = True
+                    else:
+                        log('{}\tfile:{} is too large, not saved.'.format(
+                                                    humantime, dl_link), self.cfg)
+                        save_file = False
+                        break
+                if save_file:
+                    shasum = hashlib.sha256(file_data).hexdigest()
+                    fname = 'data-{}.raw'.format(shasum)
+                    fullname = os.path.join(self.cfg['download_dir'], fname)
+                    event = {
+                            'eventid': 'adbhoney.session.file_upload',
+                            'timestamp': humantime,
+                            'unixtime': unixtime,
+                            'session': self.cfg['session'],
+                            'message': 'Downloaded file {} from {} with SHA-256 {} to {}'.format(real_fname, dl_link, shasum, fullname),
+                            'src_ip': self.cfg['src_addr'],
+                            'shasum': shasum,
+                            'dst_path': real_fname,
+                            'fullname': fullname,
+                            'file_size': dl_len,
+                            'sensor': self.cfg['sensor'],
+                            'url': dl_link
+                        }
+                    write_event(event, self.cfg)
+                    mkdir(self.cfg['download_dir'])
+                    if os.path.exists(fullname):
+                        log('File already exists, nothing written to disk.', self.cfg)
+                    else:
+
+                        with open(fullname, 'wb') as f:
+                            f.write(file_data)
+
+                        log('{}\tfile:{} - dumping {} bytes of data to {}...'.format(
+                            humantime, dl_link, dl_len, fullname), self.cfg)
+
 
     def handle_CNXN(self, version, maxPayload, systemIdentityString, message):
         """
@@ -258,8 +316,9 @@ class AdbHoneyProtocolBase(Protocol):
         """
         if 'shell:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
-            # Send terminal prompt
-            self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '#')
+            if not 'echo' in message.data:
+                # Send terminal prompt
+                self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '#')
             # Move self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '') in handle_OKAY
             # in responce of the client.
 
@@ -280,6 +339,13 @@ class AdbHoneyProtocolBase(Protocol):
                 'sensor': self.cfg['sensor']
             }
             write_event(event, self.cfg)
+            commands = event['input'].split(';')
+            for command in commands:
+                sc = command.strip()
+                if 'echo' in sc:
+                    self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, sc.replace('echo', '').strip())
+                else:
+                    self.download_shell_links(sc)
 
         elif 'sync:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
@@ -316,22 +382,33 @@ class AdbHoneyProtocolBase(Protocol):
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
         # Corner case for binary sending
+        download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
         if self.sending_data:
-            # Look for that DATAXXXX where XXXX is the length of the data block
-            # that's about to be sent (i.e. DATA\x00\x00\x01\x00)
-            if 'DATA' in message.data:
-                data_index = message.data.index('DATA')
-                payload_fragment = message.data[:data_index] + message.data[data_index + 8:]
-                self.data_file += payload_fragment
-            else:
-                self.data_file += message.data
+            if download_limit_size == 0 or len(self.data_file) <= download_limit_size:
+                self.large_data_size = False
+            if download_limit_size and len(self.data_file) > download_limit_size and not self.large_data_size:
+                self.large_data_size = True
+                humantime = getutctime(time.time())
+                log('{}\t{}\tfile:{} is too large, not saved.'.format(
+                    humantime, self.cfg['src_addr'], self.filename), self.cfg)
 
+            if not self.large_data_size:
+                # Look for that DATAXXXX where XXXX is the length of the data block
+                # that's about to be sent (i.e. DATA\x00\x00\x01\x00)
+                if 'DATA' in message.data:
+                    data_index = message.data.index('DATA')
+                    payload_fragment = message.data[:data_index] + message.data[data_index + 8:]
+                    self.data_file += payload_fragment
+                else:
+                    self.data_file += message.data
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
             if 'DONE' in message.data:
-                self.data_file = self.data_file[:-8]
-                self.dump_file_data(self.filename, self.data_file)
+                if not self.large_data_size:
+                    self.data_file = self.data_file[:-8]
+                    self.dump_file_data(self.filename, self.data_file)
                 self.sending_data = False
+                self.large_data_size = False
                 self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
                 self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
                 self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
@@ -349,7 +426,8 @@ class AdbHoneyProtocolBase(Protocol):
                     self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
                     self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
                     self.sending_data = False
-                    self.dump_file_data(fname, dr_file)
+                    if len(dr_file) <= download_limit_size or download_limit_size == 0:
+                        self.dump_file_data(fname, dr_file)
                 else:
                     self.sending_data = True
                     predata = message.data.split('DATA')[0]
