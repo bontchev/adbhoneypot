@@ -8,6 +8,7 @@ import requests
 import hashlib
 import core.output
 from core.config import CONFIG
+from adbhoney import log
 
 
 class Output(core.output.Output):
