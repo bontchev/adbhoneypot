@@ -52,8 +52,8 @@ def import_plugins(cfg):
             log('Loaded output engine: {}'.format(engine), cfg)
         except ImportError as e:
             log('Failed to load output engine: {} due to ImportError: {}'.format(engine, e), cfg)
-        except Exception:
-            log('Failed to load output engine: {}'.format(engine), cfg)
+        except Exception as e:
+            log('Failed to load output engine: {} {}'.format(engine, e), cfg)
     return output_plugins
 
 def write_event(event, cfg):
