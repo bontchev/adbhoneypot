@@ -25,20 +25,13 @@ class ReconnectingConnectionPool(adbapi.ConnectionPool):
     http://twistedmatrix.com/pipermail/twisted-python/2009-July/020007.html
     """
 
-    # def __init__(self, dbapiName, *connargs, **connkw):
-    #     # print("!!!!!!!!!!!!!!!!", connkw)
-    #     # self.log_cfg = connkw['log_cfg']
-    #     adbapi.ConnectionPool.__init__(self, dbapiName, connargs, connkw)
-
     def _runInteraction(self, interaction, *args, **kw):
-        # print("!!!!!!!!kw!!!!!!!!!!", kw, self.log_cfg)
         try:
             return adbapi.ConnectionPool._runInteraction(
                 self, interaction, *args, **kw)
         except MySQLdb.OperationalError as e:
             if e[0] not in (2003, 2006, 2013):
-                print("RCP: got error {0}, retrying operation".format(e))
-                # log("RCP: got error {0}, retrying operation".format(e), self.log_cfg)
+                # print("RCP: got error {0}, retrying operation".format(e))
                 raise e
             conn = self.connections.get(self.threadID())
             self.disconnect(conn)
@@ -66,6 +59,8 @@ class Output(core.output.Output):
         self.virustotal = CONFIG.getboolean('output_mysql', 'virustotal', fallback=True)
         self.vtapikey = CONFIG.get('output_mysql', 'virustotal_api_key', fallback='')
 
+        self.dbh = None
+
         core.output.Output.__init__(self, general_options)
 
     def _local_log(self, msg):
@@ -86,7 +81,6 @@ class Output(core.output.Output):
                 use_unicode=True,
                 cp_min=1,
                 cp_max=1
-                # log_cfg=self.cfg
             )
         except MySQLdb.Error as e:
             self._local_log("MySQL plugin: Error %d: %s" % (e.args[0], e.args[1]))
@@ -111,14 +105,6 @@ class Output(core.output.Output):
             if self.reader_asn is not None:
                self.reader_asn.close()
 
-    # def simpleQuery(self, sql, args):
-    #     """
-    #     Just run a deferred sql query, only care about errors
-    #     """
-    #     self._local_log("output_mysql: MySQL query: {} {}".format(sql, repr(args)))
-    #     d = self.dbh.runQuery(sql, args, log_cfg=self.cfg)
-    #     d.addErrback(self.sqlerror)
-
     @defer.inlineCallbacks
     def write(self, event):
         """
@@ -134,7 +120,7 @@ class Output(core.output.Output):
 
         if 'file_upload' in event['eventid']:
             try:
-                yield self.dbh.runQuery("""
+                self.dbh.runQuery("""
                     INSERT INTO downloads (session, timestamp, filesize, download_sha_hash, fullname)
                     VALUES (%s,FROM_UNIXTIME(%s),%s,%s,%s)""",
                     (event['session'], event['unixtime'], event['file_size'],
@@ -151,7 +137,7 @@ class Output(core.output.Output):
         if 'closed' in event['eventid']:
             try:
                 yield self.dbh.runQuery("UPDATE connections SET endtime = FROM_UNIXTIME(%s) WHERE session = %s",
-                                    (event['unixtime'], event['session']) )
+                                    (event['unixtime'], event['session']))
             except Exception as e:
                 self._local_log(e)
 
@@ -227,8 +213,7 @@ class Output(core.output.Output):
 
     @defer.inlineCallbacks
     def _upload_event_vt(self, shasum):
-        rd = yield self.dbh.runQuery("""
-					SELECT virustotal_sha256_hash
+        rd = yield self.dbh.runQuery("""SELECT virustotal_sha256_hash
                                         FROM virustotals
                                         WHERE virustotal_sha256_hash='%s'""" % shasum)
         if not rd:
@@ -296,7 +281,7 @@ class Output(core.output.Output):
             r = yield self.dbh.runQuery("SELECT id FROM commands WHERE inputhash='%s'" % shasum)
             if not r:
                 try:
-                    yield self.dbh.runQuery("INSERT INTO commands (input, inputhash) VALUES (%s,%s)",
+                    self.dbh.runQuery("INSERT INTO commands (input, inputhash) VALUES (%s,%s)",
                                         (sc, shasum))
                     r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
                     command_id = int(r[0][0])
@@ -308,7 +293,7 @@ class Output(core.output.Output):
 
             success = self._emulate_command(sc)
             try:
-                yield self.dbh.runQuery("""
+                self.dbh.runQuery("""
                                     INSERT INTO input (
                                         session,
                                         timestamp,
