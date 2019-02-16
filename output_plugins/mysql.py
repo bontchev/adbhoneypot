@@ -85,7 +85,6 @@ class Output(core.output.Output):
                 cp_min=1,
                 cp_max=1
             )
-            print("!!!!!!!!!!!!!!!!!!!!!!!", self.dbh)
         except MySQLdb.Error as e:
             self._local_log("MySQL plugin: Error %d: %s" % (e.args[0], e.args[1]))
 
@@ -151,6 +150,7 @@ class Output(core.output.Output):
             except Exception as e:
                 self._local_log(e)
 
+    @defer.inlineCallbacks
     def _connect_event(self, event):
         remote_ip = event['src_ip']
         if self.geoip:
@@ -207,7 +207,7 @@ class Output(core.output.Output):
             sensor_id = None
 
         try:
-            self.dbh.runQuery("""
+            yield self.dbh.runQuery("""
                 INSERT INTO connections (
                     session, starttime, endtime, sensor, ip, local_port,
                     country_name, city_name, org, country_iso_code, org_asn,
@@ -221,12 +221,13 @@ class Output(core.output.Output):
         except Exception as e:
             self._local_log(e)
 
+    @defer.inlineCallbacks
     def _upload_event_vt(self, shasum):
-        is_exist = yield self.dbh.runQuery("""
+        r = yield self.dbh.runQuery("""
 					SELECT virustotal_sha256_hash
                                         FROM virustotals
                                         WHERE virustotal_sha256_hash='%s'""" % shasum)
-        if is_exist == 0:
+        if not r:
             if self.vtapikey:
                 url = 'https://www.virustotal.com/vtapi/v2/file/report'
                 params = {'apikey': self.vtapikey, 'resource': shasum}
@@ -284,8 +285,6 @@ class Output(core.output.Output):
                 #self.dbh.commit()
 
     def _emulate_command(self, command):
-        # TODO: implement the logic
-        # TODO: echo
         # TODO: database logging
         # This code downloads files from [busybox] wget and curl
         download_files = CONFIG.getboolean('honeypot', 'download_files', fallback=True)
@@ -299,7 +298,9 @@ class Output(core.output.Output):
                 return False
             if r.status_code == 200:
                 download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
-                dl_len = int(r.headers.get('Content-Length'))
+                header_cont = r.headers.get('Content-Length')
+                # If a file Content-Length is None will not download the file
+                dl_len = int(header_cont) if header_cont else 0 #TODO: download_limit_size + 1
                 unixtime = time.time()
                 humantime = getutctime(unixtime)
                 if dl_len > download_limit_size and download_limit_size != 0:
@@ -326,23 +327,26 @@ class Output(core.output.Output):
 
         return False
 
+    @defer.inlineCallbacks
     def _input_event(self, event):
         commands = event['input'].split(';')
         for command in commands:
             sc = command.strip()
             shasum = hashlib.sha256(sc).hexdigest()
-            command_id = yield self.dbh.runQuery("SELECT id FROM commands WHERE inputhash='%s'" % shasum)
-            if not command_id:
+            r = yield self.dbh.runQuery("SELECT id FROM commands WHERE inputhash='%s'" % shasum)
+            print("!!!!!!!!!!!!!!!!!!!!", r, not r, command)
+            if not r:
                 try:
                     yield self.dbh.runQuery("INSERT INTO commands (input, inputhash) VALUES (%s,%s)",
                                         (sc, shasum))
                     #self.dbh.commit()
-                    command_id = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
+                    r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
+                    command_id = int(r[0][0])
                 except Exception as e:
                     self._local_log(e)
                     command_id = 0
             else:
-                command_id = command_id[0][0]
+                command_id = int(r[0][0])
 
             success = self._emulate_command(sc)
             try:
