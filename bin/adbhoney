@@ -59,6 +59,7 @@ adbhoney_status() {
 
 adbhoney_start() {
     # Start ADBhoney
+    adbhoney_status
     PID=$(cat ${PIDFILE} 2>/dev/null || echo -n "")
     if [ -z "$PID" ]; then
         echo "Starting ADBhoneypot ..."

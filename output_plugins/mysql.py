@@ -10,7 +10,7 @@ import core.output
 from twisted.enterprise import adbapi
 from twisted.internet import defer
 from core.config import CONFIG
-from adbhoney import log, getutctime, mkdir
+from adbhoney import log
 
 
 
@@ -25,13 +25,20 @@ class ReconnectingConnectionPool(adbapi.ConnectionPool):
     http://twistedmatrix.com/pipermail/twisted-python/2009-July/020007.html
     """
 
+    # def __init__(self, dbapiName, *connargs, **connkw):
+    #     # print("!!!!!!!!!!!!!!!!", connkw)
+    #     # self.log_cfg = connkw['log_cfg']
+    #     adbapi.ConnectionPool.__init__(self, dbapiName, connargs, connkw)
+
     def _runInteraction(self, interaction, *args, **kw):
+        # print("!!!!!!!!kw!!!!!!!!!!", kw, self.log_cfg)
         try:
             return adbapi.ConnectionPool._runInteraction(
                 self, interaction, *args, **kw)
         except MySQLdb.OperationalError as e:
             if e[0] not in (2003, 2006, 2013):
-                log.msg("RCP: got error {0}, retrying operation".format(e))
+                print("RCP: got error {0}, retrying operation".format(e))
+                # log("RCP: got error {0}, retrying operation".format(e), self.log_cfg)
                 raise e
             conn = self.connections.get(self.threadID())
             self.disconnect(conn)
@@ -66,11 +73,6 @@ class Output(core.output.Output):
             log(msg, self.cfg)
 
     def start(self):
-        # try:
-        #     self.dbh = MySQLdb.connect(host=self.host, user=self.user, passwd=self.password,
-        #                                db=self.database, port=self.port, charset='utf8', use_unicode=True)
-        # except:
-        #     self._local_log('Unable to connect the database')
 
         try:
             self.dbh = ReconnectingConnectionPool(
@@ -84,11 +86,10 @@ class Output(core.output.Output):
                 use_unicode=True,
                 cp_min=1,
                 cp_max=1
+                # log_cfg=self.cfg
             )
         except MySQLdb.Error as e:
             self._local_log("MySQL plugin: Error %d: %s" % (e.args[0], e.args[1]))
-
-        # self.db.runQuery = self.dbh.cursor()
 
         if self.geoip:
             try:
@@ -102,8 +103,6 @@ class Output(core.output.Output):
                 self._local_log('Failed to open GeoIP database {}'.format(self.geoipdb_asn_path))
 
     def stop(self):
-        # self.db.runQuery.close()
-        # self.db.runQuery = None
         self.dbh.close()
         self.dbh = None
         if self.geoip:
@@ -111,6 +110,14 @@ class Output(core.output.Output):
                self.reader_city.close()
             if self.reader_asn is not None:
                self.reader_asn.close()
+
+    # def simpleQuery(self, sql, args):
+    #     """
+    #     Just run a deferred sql query, only care about errors
+    #     """
+    #     self._local_log("output_mysql: MySQL query: {} {}".format(sql, repr(args)))
+    #     d = self.dbh.runQuery(sql, args, log_cfg=self.cfg)
+    #     d.addErrback(self.sqlerror)
 
     @defer.inlineCallbacks
     def write(self, event):
@@ -132,7 +139,6 @@ class Output(core.output.Output):
                     VALUES (%s,FROM_UNIXTIME(%s),%s,%s,%s)""",
                     (event['session'], event['unixtime'], event['file_size'],
                         event['shasum'], event['fullname']))
-                #self.dbh.commit()
             except Exception as e:
                 self._local_log(e)
 
@@ -146,7 +152,6 @@ class Output(core.output.Output):
             try:
                 yield self.dbh.runQuery("UPDATE connections SET endtime = FROM_UNIXTIME(%s) WHERE session = %s",
                                     (event['unixtime'], event['session']) )
-                #self.dbh.commit()
             except Exception as e:
                 self._local_log(e)
 
@@ -200,7 +205,7 @@ class Output(core.output.Output):
             else:
                 yield self.dbh.runQuery("INSERT INTO sensors (name) VALUES ('%s')" % (event['sensor']))
 
-                r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
+                r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
                 sensor_id = int(r[0][0])
         except Exception as e:
             self._local_log(e)
@@ -217,17 +222,16 @@ class Output(core.output.Output):
                 (event['session'], event['unixtime'], None, sensor_id,
                  event['src_ip'], event['dst_port'], country, city, org,
                  country_code, asn_num, event['dst_ip'], event['src_port']))
-            #self.dbh.commit()
         except Exception as e:
             self._local_log(e)
 
     @defer.inlineCallbacks
     def _upload_event_vt(self, shasum):
-        r = yield self.dbh.runQuery("""
+        rd = yield self.dbh.runQuery("""
 					SELECT virustotal_sha256_hash
                                         FROM virustotals
                                         WHERE virustotal_sha256_hash='%s'""" % shasum)
-        if not r:
+        if not rd:
             if self.vtapikey:
                 url = 'https://www.virustotal.com/vtapi/v2/file/report'
                 params = {'apikey': self.vtapikey, 'resource': shasum}
@@ -247,7 +251,7 @@ class Output(core.output.Output):
                 # Convert UTC scan_date to local Unix time
                 unixtime = time.mktime(time.strptime(j['scan_date'], '%Y-%m-%d %H:%M:%S')) - time.timezone
                 try:
-                    yield self.dbh.runQuery("""
+                    self.dbh.runQuery("""
                                         INSERT INTO virustotals (
                                             virustotal_sha256_hash,
                                             virustotal_permalink,
@@ -255,14 +259,11 @@ class Output(core.output.Output):
                                         VALUES (%s,%s,%s)""",
                                         (shasum, permalink, unixtime))
 
-                    r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
-                    virustotal = int(r[0][0])
+                    rd = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
+                    virustotal = int(rd[0][0])
 
                 except Exception as e:
                     self._local_log(e)
-
-                #self.dbh.commit()
-
 
                 scans = j['scans']
                 for av, val in scans.items():
@@ -271,7 +272,7 @@ class Output(core.output.Output):
                     if res == '':
                         res = None
                     try:
-                        yield self.dbh.runQuery("""
+                        self.dbh.runQuery("""
                                             INSERT INTO virustotalscans (
                                                 virustotal,
                                                 virustotalscan_scanner,
@@ -282,49 +283,8 @@ class Output(core.output.Output):
                         self._local_log(e)
                     # self._local_log("scanner {} result {}".format(av, scans[av]))
 
-                #self.dbh.commit()
-
     def _emulate_command(self, command):
-        # TODO: database logging
-        # This code downloads files from [busybox] wget and curl
-        download_files = CONFIG.getboolean('honeypot', 'download_files', fallback=True)
-        if download_files and ('wget' in command or 'curl' in command):
-            dl_cmd = command.replace('busybox', '').replace('wget', '').replace('curl', '')
-            dl_link = dl_cmd.strip().split(' ')[0].strip()
-            try:
-                r = requests.get(dl_link)
-            except Exception as e:
-                self._local_log(e)
-                return False
-            if r.status_code == 200:
-                download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
-                header_cont = r.headers.get('Content-Length')
-                # If a file Content-Length is None will not download the file
-                dl_len = int(header_cont) if header_cont else 0 #TODO: download_limit_size + 1
-                unixtime = time.time()
-                humantime = getutctime(unixtime)
-                if dl_len > download_limit_size and download_limit_size != 0:
-                    self._local_log('{}\tfile:{} ({} bytes) is too large.'.format(
-                                                                humantime, dl_link, dl_len))
-                    return False
-                else:
-                    data = r.content
-                    shasum = hashlib.sha256(data).hexdigest()
-                    fname = 'data-{}.raw'.format(shasum)
-                    fullname = os.path.join(self.cfg['download_dir'], fname)
-                    mkdir(self.cfg['download_dir'])
-                    if os.path.exists(fullname):
-                        self._local_log('File already exists, nothing written to disk.')
-                    else:
-                        with open(fullname, 'wb') as f:
-                            f.write(data)
-                        log('{}\tfile:{} - dumping {} bytes of data to {}...'.format(
-                            humantime, dl_link, dl_len, fullname), self.cfg)
-                        if self.virustotal:
-                            self._upload_event_vt(shasum)
-            else:
-                return False
-
+        # TODO: implement the logic
         return False
 
     @defer.inlineCallbacks
@@ -334,12 +294,10 @@ class Output(core.output.Output):
             sc = command.strip()
             shasum = hashlib.sha256(sc).hexdigest()
             r = yield self.dbh.runQuery("SELECT id FROM commands WHERE inputhash='%s'" % shasum)
-            print("!!!!!!!!!!!!!!!!!!!!", r, not r, command)
             if not r:
                 try:
                     yield self.dbh.runQuery("INSERT INTO commands (input, inputhash) VALUES (%s,%s)",
                                         (sc, shasum))
-                    #self.dbh.commit()
                     r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
                     command_id = int(r[0][0])
                 except Exception as e:
@@ -358,7 +316,6 @@ class Output(core.output.Output):
                                         input)
                                         VALUES (%s,FROM_UNIXTIME(%s),%s,%s)""",
                                     (event['session'], event['unixtime'], success, command_id))
-                #self.dbh.commit()
 
             except Exception as e:
                 self._local_log(e)

@@ -2,11 +2,12 @@
 
 - [Installation guide (on Ubuntu 16.04)](#installation-guide-on-ubuntu-1604)
   - [Step 1: Install dependencies](#step-1-install-dependencies)
-  - [Step 2: Create a user account](#step-2-create-a-user-account)
-  - [Step 3: Checkout the code](#step-3-checkout-the-code)
-  - [Step 4: Setup Virtual Environment](#step-4-setup-virtual-environment)
-  - [Step 5: Install configuration file](#step-5-install-configuration-file)
-  - [Step 6: Starting ADBHoneypot](#step-6-starting-adbhoneypot)
+  - [Step 2: Open the firewall for port 5555 traffic](#step-2-open-the-firewall-for-port-5555-traffic)
+  - [Step 3: Create a user account](#step-3-create-a-user-account)
+  - [Step 4: Checkout the code](#step-4-checkout-the-code)
+  - [Step 5: Setup Virtual Environment](#step-5-setup-virtual-environment)
+  - [Step 6: Install configuration file](#step-6-install-configuration-file)
+  - [Step 7: Starting ADBHoneypot](#step-7-starting-adbhoneypot)
   - [Configure Additional Output Plugins (OPTIONAL)](#configure-additional-output-plugins-optional)
   - [Command-line options](#command-line-options)
   - [Log rotation](#log-rotation)
@@ -21,10 +22,21 @@ dependencies. Actual Python packages are installed later.
 For a Python2-based environment:
 
 ```bash
+sudo apt-get update
 sudo apt-get install git python-virtualenv libffi-dev build-essential libpython-dev python2.7-minimal python-dev libmysqlclient-dev
 ```
 
-## Step 2: Create a user account
+## Step 2: Open the firewall for port 5555 traffic
+
+```bash
+sudo ufw allow 5555/tcp
+```
+
+If your honeypot machine is behind a NAT router, you must open the router
+for traffic coming over port 5555 too. How exactly this is done depends on
+the router model; please consult the instruction manual of the router.
+
+## Step 3: Create a user account
 
 It's strongly recommended to run with a dedicated non-root user id:
 
@@ -45,7 +57,7 @@ Is the information correct? [Y/n]
 $ sudo su - adbh
 ```
 
-## Step 3: Checkout the code
+## Step 4: Checkout the code
 
 ```bash
 $ git clone https://gitlab.com/venetay/adbhoneypot.git
@@ -59,7 +71,7 @@ Unpacking objects: 100% (58/58), done.
 $ cd adbhoneypot
 ```
 
-## Step 4: Setup Virtual Environment
+## Step 5: Setup Virtual Environment
 
 Next you need to create your virtual environment:
 
@@ -79,7 +91,7 @@ $ source adbh_env/bin/activate
 (adbh_env) $ pip install --upgrade -r requirements.txt
 ```
 
-## Step 5: Install configuration file
+## Step 6: Install configuration file
 
 The configuration for the honeypot is stored in `etc/adbhoney.cfg.base` and
 `etc/adbhoney.cfg`. Both files are read on startup but the entries from
@@ -106,7 +118,7 @@ For more information about how to configure additional output plugins (from
 the available ones), please consult the appropriate `README.md` file in the
 subdirectory corresponding to the plugin inside the `docs` directory.
 
-## Step 6: Starting ADBHoneypot
+## Step 7: Starting ADBHoneypot
 
 Before starting the honeypot, make sure that you have specified correctly
 where it should look for the virtual environment. This documentation suggests
@@ -203,11 +215,16 @@ a file `~/adbhoneypot/logrotate.conf` with the following contents:
 Change the log directory and file names above if you haven't used the default
 values.
 
-Then create a crontab job (`crontab -e`) to run logrotate daily:
+Then create a cron job (`crontab -e`) to run `logrotate` daily:
 
 ```crontab
 @daily /usr/sbin/logrotate -s /home/adbh/adbhoneypot/logrotate.status /home/adbh/adbhoneypot/logrotate.conf
 ```
+
+(This cron job has to be created for the user, not for the system. So, make
+sure that you are logged in as the user `adbh` and use `crontab -e`; _not_
+`sudo crontab -e`. The user `adbh` isn't supposed to be able to use `sudo`
+anyway.)
 
 A future version of the honeypot is likely to do log rotation itself, instead
 of relying on an external utility.
@@ -250,8 +267,8 @@ connected to 127.0.0.1:5555
 
 $ adb devices
 List of devices attached
-emulator-5554	device
-127.0.0.1:5555	device
+emulator-5554   device
+127.0.0.1:5555  device
 ```
 
 - Send a file to the honeypot:
