@@ -244,11 +244,11 @@ class Output(core.output.Output):
                                         VALUES (%s,%s,%s)""",
                                         (shasum, permalink, unixtime))
 
-                    rd = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
-                    virustotal = int(rd[0][0])
-
                 except Exception as e:
                     self._local_log(e)
+
+                rd = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
+                virustotal = int(rd[0][0])
 
                 scans = j['scans']
                 for av, val in scans.items():
