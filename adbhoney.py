@@ -232,7 +232,7 @@ class AdbHoneyProtocolBase(Protocol):
         # This code downloads files from [busybox] wget and curl
         download_files = CONFIG.getboolean('honeypot', 'download_files', fallback=True)
         if download_files and ('wget' in command or 'curl' in command):
-            dl_cmd = command.replace('busybox', '').replace('wget', '').replace('curl', '')
+            dl_cmd = command.replace('busybox', '', 1).replace('wget', '', 1).replace('curl', '', 1)
             dl_link = dl_cmd.strip().split(' ')[0].strip()
             real_fname = dl_link.split('/')[-1]
             try:
