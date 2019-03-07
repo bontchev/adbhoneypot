@@ -6,6 +6,7 @@ from twisted.internet import reactor, endpoints
 from argparse import ArgumentParser
 from core.config import CONFIG
 from adb import protocol
+import shell_commands
 import time
 import datetime
 import binascii
@@ -92,9 +93,24 @@ def getlocalip():
         return ip
 
 
+def import_commands(cfg):
+    commands = {}
+    for c in shell_commands.__all__:
+        try:
+            module = __import__('shell_commands.%s' % (c,),
+                                globals(), locals(), ['commands'])
+            commands.update(module.commands)
+        except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            log("Failed to import command {}: {}".format(c, e), cfg)
+    print(commands)
+    return commands
+
+
 class AdbHoneyProtocolBase(Protocol):
     version = protocol.VERSION
     maxPayload = protocol.MAX_PAYLOAD
+
 
     def __init__(self, options):
         self.cfg = options
@@ -500,6 +516,7 @@ def main():
 
     log('Listening on {}:{}.'.format(cfg_options['addr'], cfg_options['port']), cfg_options)
     cfg_options['output_plugins'] = import_plugins(cfg_options)
+    cfg_options['shell_commands'] = import_commands(cfg_options)
 
     connect = 'tcp:{}:interface={}'.format(cfg_options['port'], cfg_options['addr'])
     endpoints.serverFromString(reactor, connect).listen(ADBFactory(cfg_options))
