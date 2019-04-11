@@ -240,7 +240,7 @@ class AdbHoneyProtocolBase(Protocol):
             words.pop(0)
             first_word = words[0]
         if first_word == 'wget' or first_word == 'curl':
-            for word in words[1:]:
+            for word in words:
                 if '://' not in word:
                     continue
                 dl_link = word.strip('/')
