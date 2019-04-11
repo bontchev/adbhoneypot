@@ -232,63 +232,70 @@ class AdbHoneyProtocolBase(Protocol):
     def download_shell_links(self, command):
         # This code downloads files from [busybox] wget and curl
         download_files = CONFIG.getboolean('honeypot', 'download_files', fallback=True)
-        if download_files and ('wget' in command or 'curl' in command):
-            url = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', command)
-            if url:
-                dl_link = url[0]
-                real_fname = dl_link.split('/')[-1] if dl_link.split('/') else 'real_fname'
-                try:
-                    r = requests.get(dl_link, stream=True)
-                except Exception as e:
-                    log(e, self.cfg)
-                    r = None
+        if not download_files:
+            return
+        words = command.strip().split()
+        first_word = words[0]
+        if first_word == 'busybox':
+            words.pop(0)
+            first_word = words[0]
+        if first_word == 'wget' or first_word == 'curl':
+            for word in words[1:]:
+                if '://' in word:
+                    dl_link = word.strip('/')
+                    real_fname = dl_link.split('/')[-1]
+                    try:
+                        r = requests.get(dl_link, stream=True)
+                    except Exception as e:
+                        log(e, self.cfg)
+                        r = None
 
-                if r and r.status_code == 200:
-                    download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
-                    unixtime = time.time()
-                    humantime = getutctime(unixtime)
-                    dl_len = 0
-                    file_data = ''
-                    save_file = False
-                    for chunk in r.iter_content(chunk_size=100000):
-                        dl_len += len(chunk)
-                        if dl_len <= download_limit_size or download_limit_size == 0:
-                            file_data += chunk
-                            save_file = True
-                        else:
-                            log('{}\tfile:{} is too large, not saved.'.format(
-                                                        humantime, dl_link), self.cfg)
-                            save_file = False
-                            break
-                    if save_file:
-                        shasum = hashlib.sha256(file_data).hexdigest()
-                        fname = 'data-{}.raw'.format(shasum)
-                        fullname = os.path.join(self.cfg['download_dir'], fname)
-                        event = {
-                                'eventid': 'adbhoney.session.file_upload',
-                                'timestamp': humantime,
-                                'unixtime': unixtime,
-                                'session': self.cfg['session'],
-                                'message': 'Downloaded file {} from {} with SHA-256 {} to {}'.format(real_fname, dl_link, shasum, fullname),
-                                'src_ip': self.cfg['src_addr'],
-                                'shasum': shasum,
-                                'dst_path': real_fname,
-                                'fullname': fullname,
-                                'file_size': dl_len,
-                                'sensor': self.cfg['sensor'],
-                                'url': dl_link
-                            }
-                        write_event(event, self.cfg)
-                        mkdir(self.cfg['download_dir'])
-                        if os.path.exists(fullname):
-                            log('File already exists, nothing written to disk.', self.cfg)
-                        else:
+                    if r and r.status_code == 200:
+                        download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
+                        unixtime = time.time()
+                        humantime = getutctime(unixtime)
+                        dl_len = 0
+                        file_data = ''
+                        save_file = False
+                        for chunk in r.iter_content(chunk_size=100000):
+                            dl_len += len(chunk)
+                            if dl_len <= download_limit_size or download_limit_size == 0:
+                                file_data += chunk
+                                save_file = True
+                            else:
+                                log('{}\tfile:{} is too large, not saved.'.format(
+                                                            humantime, dl_link), self.cfg)
+                                save_file = False
+                                break
+                        if save_file:
+                            shasum = hashlib.sha256(file_data).hexdigest()
+                            fname = 'data-{}.raw'.format(shasum)
+                            fullname = os.path.join(self.cfg['download_dir'], fname)
+                            event = {
+                                    'eventid': 'adbhoney.session.file_upload',
+                                    'timestamp': humantime,
+                                    'unixtime': unixtime,
+                                    'session': self.cfg['session'],
+                                    'message': 'Downloaded file {} from {} with SHA-256 {} to {}'.format(real_fname, dl_link, shasum, fullname),
+                                    'src_ip': self.cfg['src_addr'],
+                                    'shasum': shasum,
+                                    'dst_path': real_fname,
+                                    'fullname': fullname,
+                                    'file_size': dl_len,
+                                    'sensor': self.cfg['sensor'],
+                                    'url': dl_link
+                                }
+                            write_event(event, self.cfg)
+                            mkdir(self.cfg['download_dir'])
+                            if os.path.exists(fullname):
+                                log('File already exists, nothing written to disk.', self.cfg)
+                            else:
 
-                            with open(fullname, 'wb') as f:
-                                f.write(file_data)
+                                with open(fullname, 'wb') as f:
+                                    f.write(file_data)
 
-                            log('{}\tfile:{} - dumping {} bytes of data to {}...'.format(
-                                humantime, dl_link, dl_len, fullname), self.cfg)
+                                log('{}\tfile:{} - dumping {} bytes of data to {}...'.format(
+                                    humantime, dl_link, dl_len, fullname), self.cfg)
 
 
     def handle_CNXN(self, version, maxPayload, systemIdentityString, message):
