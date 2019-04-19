@@ -1,5 +1,10 @@
 # Version History
 
+## Release 2.0.1
+
+* The honeypot now has primitive emulation of some shell commands (echo, wget, curl)
+* Various bug fixes
+
 ## Release 2.0.0
 
 * Honeypot rewritten from scratch based on the Twisted framework
@@ -8,3 +13,4 @@
 * Implemented JSON logging as an output plugin
 * Implemented logging to a MySQL database as an output plugin
 * Implemented script for starting, stopping, and restarting the honeypot
+

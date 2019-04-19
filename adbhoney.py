@@ -17,7 +17,7 @@ import sys
 import os
 import re
 
-__VERSION__ = '2.0.0'
+__VERSION__ = '2.0.1'
 
 def log(message, cfg):
     if cfg['logfile'] is None:
