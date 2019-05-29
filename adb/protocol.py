@@ -6,7 +6,9 @@
 
 from twisted.internet import protocol
 import struct
+import sys
 
+PYTHON2 = sys.version_info[0] < 3
 VERSION = 0x01000000  # ADB protocol version
 MAX_PAYLOAD = 4096
 
@@ -34,10 +36,13 @@ class AdbMessage(object):
 
     @property
     def header(self):
-        if type(self.data) == bytes:
-            data_check = sum(c for c in self.data)
+        if PYTHON2:
+            data_check = sum(ord(c) for c in self.data)
         else:
-            data_check = sum([ord(c) for c in self.data])
+            if type(self.data) == bytes:
+                data_check = sum(c for c in self.data)
+            else:
+                data_check = sum([ord(c) for c in self.data])
         magic = self.command ^ 0xffffffff
         return AdbMessageHeader(self.command,
                                 self.arg0,

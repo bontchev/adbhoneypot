@@ -36,6 +36,6 @@ class Output(core.output.Output):
                     raise
         for key, value in event_dump.items():
             if type(value) == bytes:
-                event_dump[key] = str(value, 'utf-8', errors='replace')
+                event_dump[key] = value.decode('utf-8', errors='replace')
         with open(self.outfile, 'a') as f:
             print(json.dumps(event_dump), file=f)
