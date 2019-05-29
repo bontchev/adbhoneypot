@@ -17,6 +17,15 @@ import sys
 import os
 
 
+PYTHON2 = sys.version_info[0] < 3
+if PYTHON2:
+    def decode(x):
+        return x
+else:
+    def decode(x):
+        return x.decode('utf-8', errors='replace')
+
+
 __VERSION__ = '3.0.0'
 
 
@@ -183,7 +192,7 @@ class AdbHoneyProtocolBase(Protocol):
             else:
                 log('<<<<<< {}'.format(string), self.cfg)
         str_command = protocol.getCommandString(message.command)
-        name = 'handle_{}'.format(str(str_command, 'utf-8'))
+        name = 'handle_{}'.format(decode(str_command))
         handler = getattr(self.messageHandler, name, self.unhandledMessage)
         states = [str_command, message.command, message.data]
         if message.arg0 in self.streams:
@@ -306,7 +315,7 @@ class AdbHoneyProtocolBase(Protocol):
             self.sendCommand(protocol.CMD_CNXN,
                              self.version,
                              self.maxPayload,
-                             str(systemIdentityString, 'utf-8') + '\x00')
+                             decode(systemIdentityString) + '\x00')
 
     def handle_OPEN(self, remoteId, sessionId, destination, message):
         """

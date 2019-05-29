@@ -60,7 +60,7 @@ class AdbMessage(object):
         if type(self.data) == bytes:
             dat = self.data
         else:
-            dat = bytes(self.data, "utf-8")
+            dat = bytes(self.data, "utf-8", errors='replace')
         return self.header.encode() + dat
 
     def validate(self, header):
