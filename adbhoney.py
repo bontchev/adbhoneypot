@@ -17,7 +17,7 @@ import sys
 import os
 
 
-__VERSION__ = '2.0.1'
+__VERSION__ = '3.0.0'
 
 
 def log(message, cfg):
