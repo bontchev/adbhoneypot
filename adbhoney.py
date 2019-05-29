@@ -427,6 +427,7 @@ class AdbHoneyProtocolBase(Protocol):
                 if b'DONE' in message.data[-8:]:
                     dr_file = ''
                     predata = message.data.split(b'DATA')[0]
+                    fname = 'blank_fname'
                     if predata:
                         # Wished destination filename
                         fname = predata.split(b',')[0]

@@ -11,7 +11,6 @@ from core.config import CONFIG
 from adbhoney import log
 
 
-
 class ReconnectingConnectionPool(adbapi.ConnectionPool):
     """
     Reconnecting adbapi connection pool for MySQL.
@@ -280,7 +279,7 @@ class Output(core.output.Output):
             if not r:
                 try:
                     self.dbh.runQuery("INSERT INTO commands (input, inputhash) VALUES (%s,%s)",
-                                        (sc, shasum))
+                                        (sc.decode('utf-8').encode('unicode_escape'), shasum))
                     r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
                     command_id = int(r[0][0])
                 except Exception as e:

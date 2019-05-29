@@ -1,4 +1,5 @@
 import socket
+from core.config import CONFIG
 
 
 class Output(object):
