@@ -34,7 +34,10 @@ class AdbMessage(object):
 
     @property
     def header(self):
-        data_check = sum(ord(c) for c in self.data)
+        if type(self.data) == bytes:
+            data_check = sum(c for c in self.data)
+        else:
+            data_check = sum([ord(c) for c in self.data])
         magic = self.command ^ 0xffffffff
         return AdbMessageHeader(self.command,
                                 self.arg0,
@@ -54,7 +57,11 @@ class AdbMessage(object):
         return message, data[header.data_length:]
 
     def encode(self):
-        return self.header.encode() + self.data
+        if type(self.data) == bytes:
+            dat = self.data
+        else:
+            dat = bytes(self.data, "utf-8")
+        return self.header.encode() + dat
 
     def validate(self, header):
         assert self.header == header

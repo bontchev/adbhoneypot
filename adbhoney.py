@@ -15,9 +15,10 @@ import socket
 import errno
 import sys
 import os
-import re
+
 
 __VERSION__ = '2.0.1'
+
 
 def log(message, cfg):
     if cfg['logfile'] is None:
@@ -27,6 +28,7 @@ def log(message, cfg):
         with open(cfg['logfile'], 'a') as f:
             print(message, file=f)
 
+
 def stop_plugins(cfg):
     log('Stoping plugins ... ', cfg)
     for plugin in cfg['output_plugins']:
@@ -35,6 +37,7 @@ def stop_plugins(cfg):
         except Exception as e:
             log(e, cfg)
             continue
+
 
 def import_plugins(cfg):
     # Load output modules (inspired by the Cowrie honeypot)
@@ -49,7 +52,7 @@ def import_plugins(cfg):
         engine = x.split('_')[1]
         try:
             output = __import__('output_plugins.{}'.format(engine),
-                                globals(), locals(), ['output'], -1).Output(general_options)
+                                globals(), locals(), ['output'], 0).Output(general_options)
             output_plugins.append(output)
             log('Loaded output engine: {}'.format(engine), cfg)
         except ImportError as e:
@@ -57,6 +60,7 @@ def import_plugins(cfg):
         except Exception as e:
             log('Failed to load output engine: {} {}'.format(engine, e), cfg)
     return output_plugins
+
 
 def write_event(event, cfg):
     output_plugins = cfg['output_plugins']
@@ -67,19 +71,22 @@ def write_event(event, cfg):
             log(e, cfg)
             continue
 
+
 def mkdir(path):
     if not path:
         return
     try:
         os.makedirs(path)
-    except OSError, exc:
+    except OSError as exc:
         if exc.errno == errno.EEXIST and os.path.isdir(path):
             pass
         else:
             raise
 
+
 def getutctime(unixtime):
         return datetime.datetime.utcfromtimestamp(unixtime).isoformat() + 'Z'
+
 
 def getlocalip():
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -99,7 +106,7 @@ class AdbHoneyProtocolBase(Protocol):
 
     def __init__(self, options):
         self.cfg = options
-        self.buff = ''
+        self.buff = b''
         self.streams = {}
         self.messageHandler = self
 
@@ -176,7 +183,7 @@ class AdbHoneyProtocolBase(Protocol):
             else:
                 log('<<<<<< {}'.format(string), self.cfg)
         str_command = protocol.getCommandString(message.command)
-        name = 'handle_' + str_command
+        name = 'handle_{}'.format(str(str_command, 'utf-8'))
         handler = getattr(self.messageHandler, name, self.unhandledMessage)
         states = [str_command, message.command, message.data]
         if message.arg0 in self.streams:
@@ -240,7 +247,7 @@ class AdbHoneyProtocolBase(Protocol):
             unixtime = time.time()
             humantime = getutctime(unixtime)
             dl_len = 0
-            file_data = ''
+            file_data = b''
             for chunk in r.iter_content(chunk_size=100000):
                 dl_len += len(chunk)
                 if dl_len <= download_limit_size or download_limit_size == 0:
@@ -282,9 +289,9 @@ class AdbHoneyProtocolBase(Protocol):
         if not download_files:
             return
         for word in arguments:
-            if '://' in word:
-                dl_link = word.strip('/')
-                real_fname = dl_link.split('/')[-1]
+            if b'://' in word:
+                dl_link = word.strip(b'/')
+                real_fname = dl_link.split(b'/')[-1]
                 self.download_from_url(dl_link, real_fname)
 
     def handle_CNXN(self, version, maxPayload, systemIdentityString, message):
@@ -299,7 +306,7 @@ class AdbHoneyProtocolBase(Protocol):
             self.sendCommand(protocol.CMD_CNXN,
                              self.version,
                              self.maxPayload,
-                             systemIdentityString + '\x00')
+                             str(systemIdentityString, 'utf-8') + '\x00')
 
     def handle_OPEN(self, remoteId, sessionId, destination, message):
         """
@@ -312,17 +319,17 @@ class AdbHoneyProtocolBase(Protocol):
 
         An OPEN message implies an OKAY message from the connecting remote stream.
         """
-        if 'shell:' in message.data:
+        if b'shell:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
-            if not 'echo' in message.data:
+            if not b'echo' in message.data:
                 # Send terminal prompt
                 self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, '#')
             # Move self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '') in handle_OKAY
             # in responce of the client.
 
             # Find last valid shell string in message.data
-            msg  = message.data.split('shell:')[-1]
-            shell_msg = 'shell:' + msg
+            msg  = message.data.split(b'shell:')[-1]
+            shell_msg = b'shell:' + msg
             unixtime = time.time()
             humantime = getutctime(unixtime)
             log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], shell_msg[:-1]), self.cfg)
@@ -337,19 +344,19 @@ class AdbHoneyProtocolBase(Protocol):
                 'sensor': self.cfg['sensor']
             }
             write_event(event, self.cfg)
-            commands = event['input'].split(';')
+            commands = event['input'].split(b';')
             for command in commands:
                 words = command.strip().split()
                 first_word = words[0]
                 words.pop(0)
-                if first_word == 'busybox':
+                if first_word == b'busybox':
                     first_word = words[0]
                     words.pop(0)
-                if first_word == 'echo':
-                    self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, ' '.join(words))
-                elif first_word == 'wget' or first_word == 'curl':
+                if first_word == b'echo':
+                    self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, b' '.join(words))
+                elif first_word == b'wget' or first_word == b'curl':
                     self.download_shell_links(words)
-        elif 'sync:' in message.data:
+        elif b'sync:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
         else:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
@@ -360,7 +367,7 @@ class AdbHoneyProtocolBase(Protocol):
         Called when the stream on the remote side is ready for write.
         @param data: should be ''
         """
-        if 'shell' in self.streams[remoteId][0][2]:
+        if b'shell' in self.streams[remoteId][0][2]:
             self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
 
     def handle_CLSE(self, remoteId, localId, data, message):
@@ -368,18 +375,18 @@ class AdbHoneyProtocolBase(Protocol):
 
     def handle_WRTE(self, remoteId, localId, data, message):
 
-        if 'STAT' in message.data:
+        if b'STAT' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
         if self.streams[remoteId][-1][1] == protocol.CMD_WRTE and \
            self.streams[remoteId][-2][1] == protocol.CMD_WRTE and \
-           'STAT' in self.streams[remoteId][-2][2]:
+           b'STAT' in self.streams[remoteId][-2][2]:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
             # Because ADB state machine sometimes we need to send duplicate messages
             self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'STAT\x01\x00\x00\x00')
             self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'STAT\x01\x00\x00\x00')
 
-        if 'SEND' in message.data:
+        if b'SEND' in message.data:
             self.data_file = ''
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
@@ -397,15 +404,15 @@ class AdbHoneyProtocolBase(Protocol):
             if not self.large_data_size:
                 # Look for that DATAXXXX where XXXX is the length of the data block
                 # that's about to be sent (i.e. DATA\x00\x00\x01\x00)
-                if 'DATA' in message.data:
-                    data_index = message.data.index('DATA')
+                if b'DATA' in message.data:
+                    data_index = message.data.index(b'DATA')
                     payload_fragment = message.data[:data_index] + message.data[data_index + 8:]
                     self.data_file += payload_fragment
                 else:
                     self.data_file += message.data
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
-            if 'DONE' in message.data:
+            if b'DONE' in message.data:
                 if not self.large_data_size:
                     self.data_file = self.data_file[:-8]
                     self.dump_file_data(self.filename, self.data_file)
@@ -415,15 +422,15 @@ class AdbHoneyProtocolBase(Protocol):
                 self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
                 self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
         else:
-            if 'DATA' in message.data[:128]:
+            if b'DATA' in message.data[:128]:
                 # If the message is really short, wrap it up
-                if 'DONE' in message.data[-8:]:
+                if b'DONE' in message.data[-8:]:
                     dr_file = ''
-                    predata = message.data.split('DATA')[0]
+                    predata = message.data.split(b'DATA')[0]
                     if predata:
                         # Wished destination filename
-                        fname = predata.split(',')[0]
-                    dr_file = message.data.split('DATA')[1][4:-8]
+                        fname = predata.split(b',')[0]
+                    dr_file = message.data.split(b'DATA')[1][4:-8]
                     self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
                     self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
                     self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
@@ -432,16 +439,16 @@ class AdbHoneyProtocolBase(Protocol):
                         self.dump_file_data(fname, dr_file)
                 else:
                     self.sending_data = True
-                    predata = message.data.split('DATA')[0]
+                    predata = message.data.split(b'DATA')[0]
                     if predata:
                         # Wished destination filename
-                        self.filename = predata.split(',')[0]
-                    self.data_file = message.data.split('DATA')[1][4:]
+                        self.filename = predata.split(b',')[0]
+                    self.data_file = message.data.split(b'DATA')[1][4:]
 
-                if 'SEND' not in message.data[:128]:
+                if b'SEND' not in message.data[:128]:
                     self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
 
-        if 'QUIT' in message.data:
+        if b'QUIT' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
             self.sendCommand(protocol.CMD_CLSE, 2, message.arg0, '')
 
@@ -460,7 +467,6 @@ class ADBFactory(Factory):
 def main():
 
     cfg_options = {}
-
     cfg_options['addr'] = CONFIG.get('honeypot', 'out_addr', fallback='0.0.0.0')
     cfg_options['port'] = CONFIG.getint('honeypot', 'listen_port', fallback=5555)
     cfg_options['download_dir'] = CONFIG.get('honeypot', 'download_path', fallback='')
@@ -476,8 +482,9 @@ def main():
     cfg_options['device_id'] = CONFIG.get('honeypot', 'id_string',
                                   fallback='device::http://ro.product.name =starltexx;ro.product.model=SM-G960F;ro.product.device=starlte;features=cmd,stat_v2,shell_v2')
 
-    parser = ArgumentParser(version='%(prog)s version ' + __VERSION__, description='ADB Honeypot')
+    parser = ArgumentParser(prog='adbhoneypot', description='ADB Honeypot')
 
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s version ' + __VERSION__)
     parser.add_argument('-a', '--addr', type=str, default=cfg_options['addr'],
                         help='Address to bind to (default: {})'.format(cfg_options['addr']))
     parser.add_argument('-p', '--port', type=int, default=cfg_options['port'],

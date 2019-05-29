@@ -1,6 +1,4 @@
 from __future__ import print_function
-import os
-import json
 import MySQLdb
 import time
 import geoip2.database
@@ -274,7 +272,7 @@ class Output(core.output.Output):
 
     @defer.inlineCallbacks
     def _input_event(self, event):
-        commands = event['input'].split(';')
+        commands = event['input'].split(b';')
         for command in commands:
             sc = command.strip()
             shasum = hashlib.sha256(sc).hexdigest()
