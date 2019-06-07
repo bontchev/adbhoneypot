@@ -75,3 +75,4 @@ logrotate.*
 
 # PID
 *.pid
+*.swp
