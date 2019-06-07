@@ -186,7 +186,7 @@ class AdbHoneyProtocolBase(Protocol):
 
     def dispatchMessage(self, message):
         if self.cfg['debug'] and not self.large_data_size:
-            string = str(decode(message))
+            string = str(message)
             if len(string) > 96:
                 log('<<<<<< {} ...... {}'.format(string[0:64], string[-32:]), self.cfg)
             else:
@@ -212,7 +212,7 @@ class AdbHoneyProtocolBase(Protocol):
         #TODO: split data into chunks of MAX_PAYLOAD ?
         message = protocol.AdbMessage(command, arg0, arg1, data)
         if self.cfg['debug'] and not self.large_data_size:
-            log('>>>>>> {}'.format(decode(message)), self.cfg)
+            log('>>>>>> {}'.format(message), self.cfg)
         self.transport.write(message.encode())
 
     def dump_file_data(self, real_fname, data):

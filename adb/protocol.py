@@ -32,7 +32,7 @@ class AdbMessage(object):
         self.command = command
         self.arg0 = arg0
         self.arg1 = arg1
-        self.data = data.decode('utf-8', errors='replace')
+        self.data = data
 
     @property
     def header(self):
