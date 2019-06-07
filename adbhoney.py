@@ -131,7 +131,7 @@ class AdbHoneyProtocolBase(Protocol):
         humantime = getutctime(unixtime)
         self.start = unixtime
         log('{}\t{}\tconnection start ({})'.format(humantime, self.cfg['src_addr'],
-            self.cfg['session']), self.cfg)
+            decode(self.cfg['session']), self.cfg))
         localip = getlocalip()
         event = {
             'eventid': 'adbhoney.session.connect',
@@ -139,7 +139,7 @@ class AdbHoneyProtocolBase(Protocol):
             'unixtime': unixtime,
             'session': self.cfg['session'],
             'message': 'New connection: {}:{} ({}:{}) [session: {}]'.format(self.cfg['src_addr'],
-                self.cfg['src_port'], localip, self.cfg['port'], self.cfg['session']),
+                self.cfg['src_port'], localip, self.cfg['port'], decode(self.cfg['session'])),
             'src_ip': self.cfg['src_addr'],
             'src_port': self.cfg['src_port'],
             'dst_ip': localip,
@@ -162,7 +162,7 @@ class AdbHoneyProtocolBase(Protocol):
             humantime = getutctime(unixtime)
             duration = unixtime - self.start
             log('{}\t{}\tconnection closed ({})'.format(humantime, self.cfg['src_addr'],
-                self.cfg['session']), self.cfg)
+                decode(self.cfg['session'])), self.cfg)
             event = {
                 'eventid': 'adbhoney.session.closed',
                 'timestamp': humantime,
@@ -186,7 +186,7 @@ class AdbHoneyProtocolBase(Protocol):
 
     def dispatchMessage(self, message):
         if self.cfg['debug'] and not self.large_data_size:
-            string = str(message)
+            string = decode(str(message))
             if len(string) > 96:
                 log('<<<<<< {} ...... {}'.format(string[0:64], string[-32:]), self.cfg)
             else:
@@ -212,7 +212,7 @@ class AdbHoneyProtocolBase(Protocol):
         #TODO: split data into chunks of MAX_PAYLOAD ?
         message = protocol.AdbMessage(command, arg0, arg1, data)
         if self.cfg['debug'] and not self.large_data_size:
-            log('>>>>>> {}'.format(message), self.cfg)
+            log('>>>>>> {}'.format(decode(message)), self.cfg)
         self.transport.write(message.encode())
 
     def dump_file_data(self, real_fname, data):
@@ -262,8 +262,7 @@ class AdbHoneyProtocolBase(Protocol):
                 if dl_len <= download_limit_size or download_limit_size == 0:
                     file_data += chunk
                 else:
-                    log('{}\tfile:{} is too large, not saved.'.format(
-                                                humantime, dl_link), self.cfg)
+                    log('{}\tfile:{} is too large, not saved.'.format(humantime, dl_link), self.cfg)
                     return
             shasum = hashlib.sha256(file_data).hexdigest()
             fname = 'data-{}.raw'.format(shasum)
@@ -341,7 +340,7 @@ class AdbHoneyProtocolBase(Protocol):
             shell_msg = b'shell:' + msg
             unixtime = time.time()
             humantime = getutctime(unixtime)
-            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], shell_msg[:-1]), self.cfg)
+            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], decode(shell_msg[:-1])), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
                 'timestamp': humantime,
