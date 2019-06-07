@@ -49,6 +49,7 @@ wheels/
 venv/
 ENV/
 adbh_env/
+*_env/
 
 # Log files
 log/
