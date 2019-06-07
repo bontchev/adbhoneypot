@@ -131,7 +131,7 @@ class AdbHoneyProtocolBase(Protocol):
         humantime = getutctime(unixtime)
         self.start = unixtime
         log('{}\t{}\tconnection start ({})'.format(humantime, self.cfg['src_addr'],
-            decode(self.cfg['session']), self.cfg))
+            decode(self.cfg['session'])), self.cfg)
         localip = getlocalip()
         event = {
             'eventid': 'adbhoney.session.connect',
@@ -186,7 +186,7 @@ class AdbHoneyProtocolBase(Protocol):
 
     def dispatchMessage(self, message):
         if self.cfg['debug'] and not self.large_data_size:
-            string = decode(str(message))
+            string = str(decode(message))
             if len(string) > 96:
                 log('<<<<<< {} ...... {}'.format(string[0:64], string[-32:]), self.cfg)
             else:
