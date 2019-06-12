@@ -17,16 +17,14 @@ import sys
 import os
 
 
-PYTHON2 = sys.version_info[0] < 3
-if PYTHON2:
-    def decode(x):
-        return x
-else:
-    def decode(x):
-        return x.decode('utf-8', errors='replace')
-
-
 __VERSION__ = '3.0.0'
+
+
+def decode(x):
+    if sys.version_info[0] < 3:
+        return x
+    else:
+        return x.decode('utf-8', errors='replace')
 
 
 def log(message, cfg):
@@ -36,6 +34,35 @@ def log(message, cfg):
     else:
         with open(cfg['logfile'], 'a') as f:
             print(message, file=f)
+
+
+def bytes_dumper(text):
+    ret = ''
+    for c in text:
+        if type(c) == int:
+            i = c
+        else:
+            i = ord(c)
+        if 32 <= i and i < 127:
+            ret += chr(i)
+        else:
+            ret += '\\x{:02x}'.format(i)
+    return ret
+
+
+def message_to_string(message):
+    strng = "cmd: '{}', ".format(decode(protocol.getCommandString(message.header.command)))
+    strng += 'arg0: {:8}, '.format(message.header.arg0)
+    strng += 'arg1: {:4}, '.format(message.header.arg1)
+    strng += 'data_len: {:3}, '.format(message.header.data_length)
+    strng += 'data_check: 0x{:04X}, '.format(message.header.data_check)
+    strng += 'magic: 0x{:08X}, '.format(message.header.magic)
+    data = bytes_dumper(message.data)
+    if len(data) > 50:
+        strng += "data: '{} ...... {}'".format(data[0:18], data[-32:])
+    else:
+        strng += "data: '{}'".format(data)
+    return strng
 
 
 def stop_plugins(cfg):
@@ -126,12 +153,12 @@ class AdbHoneyProtocolBase(Protocol):
         self.start = time.time()
 
     def connectionMade(self):
-        self.cfg['session'] = binascii.hexlify(os.urandom(6))
+        self.cfg['session'] = decode(binascii.hexlify(os.urandom(6)))
         unixtime = time.time()
         humantime = getutctime(unixtime)
         self.start = unixtime
         log('{}\t{}\tconnection start ({})'.format(humantime, self.cfg['src_addr'],
-            decode(self.cfg['session'])), self.cfg)
+            self.cfg['session']), self.cfg)
         localip = getlocalip()
         event = {
             'eventid': 'adbhoney.session.connect',
@@ -139,7 +166,7 @@ class AdbHoneyProtocolBase(Protocol):
             'unixtime': unixtime,
             'session': self.cfg['session'],
             'message': 'New connection: {}:{} ({}:{}) [session: {}]'.format(self.cfg['src_addr'],
-                self.cfg['src_port'], localip, self.cfg['port'], decode(self.cfg['session'])),
+                self.cfg['src_port'], localip, self.cfg['port'], self.cfg['session']),
             'src_ip': self.cfg['src_addr'],
             'src_port': self.cfg['src_port'],
             'dst_ip': localip,
@@ -162,7 +189,7 @@ class AdbHoneyProtocolBase(Protocol):
             humantime = getutctime(unixtime)
             duration = unixtime - self.start
             log('{}\t{}\tconnection closed ({})'.format(humantime, self.cfg['src_addr'],
-                decode(self.cfg['session'])), self.cfg)
+                self.cfg['session']), self.cfg)
             event = {
                 'eventid': 'adbhoney.session.closed',
                 'timestamp': humantime,
@@ -178,7 +205,7 @@ class AdbHoneyProtocolBase(Protocol):
     def getMessage(self, data):
         try:
             message, self.buff = protocol.AdbMessage.decode(self.buff)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=unused-variable
             # TODO: correctly handle corrupt messages
             # log(e, cfg)
             return
@@ -186,11 +213,7 @@ class AdbHoneyProtocolBase(Protocol):
 
     def dispatchMessage(self, message):
         if self.cfg['debug'] and not self.large_data_size:
-            string = str(message)
-            if len(string) > 96:
-                log('<<<<<< {} ...... {}'.format(string[0:64], string[-32:]), self.cfg)
-            else:
-                log('<<<<<< {}'.format(string), self.cfg)
+            log('<<<<<< {}'.format(message_to_string(message)), self.cfg)
         str_command = protocol.getCommandString(message.command)
         name = 'handle_{}'.format(decode(str_command))
         handler = getattr(self.messageHandler, name, self.unhandledMessage)
@@ -206,13 +229,13 @@ class AdbHoneyProtocolBase(Protocol):
         handler(message.arg0, message.arg1, message.data, message)
 
     def unhandledMessage(self, message):
-        log('Unhandled message: {}'.format(message), self.cfg)
+        log('Unhandled message: {}'.format(message_to_string(message)), self.cfg)
 
     def sendCommand(self, command, arg0, arg1, data):
         #TODO: split data into chunks of MAX_PAYLOAD ?
         message = protocol.AdbMessage(command, arg0, arg1, data)
         if self.cfg['debug'] and not self.large_data_size:
-            log('>>>>>> {}'.format(message), self.cfg)
+            log('>>>>>> {}'.format(message_to_string(message)), self.cfg)
         self.transport.write(message.encode())
 
     def dump_file_data(self, real_fname, data):
@@ -297,9 +320,9 @@ class AdbHoneyProtocolBase(Protocol):
         if not download_files:
             return
         for word in arguments:
-            if b'://' in word:
-                dl_link = word.strip(b'/')
-                real_fname = dl_link.split(b'/')[-1]
+            if '://' in word:
+                dl_link = word.strip('/')
+                real_fname = dl_link.split('/')[-1]
                 self.download_from_url(dl_link, real_fname)
 
     def handle_CNXN(self, version, maxPayload, systemIdentityString, message):
@@ -307,8 +330,8 @@ class AdbHoneyProtocolBase(Protocol):
         Called when we get an incoming CNXN message
         """
         systemIdentityString = self.cfg['device_id'].encode('utf8')
-        log('Protocol version {}-{} and max payload {}-{}'.format(self.version, version, self.maxPayload, maxPayload), self.cfg)
         if version != self.version or self.maxPayload < maxPayload:
+            log('Protocol version {}-{} and max payload {}-{}'.format(self.version, version, self.maxPayload, maxPayload), self.cfg)
             log('Disconnecting: Protocol version or max payload mismatch', self.cfg)
             self.transport.loseConnection()
         else:
@@ -337,11 +360,11 @@ class AdbHoneyProtocolBase(Protocol):
             # in responce of the client.
 
             # Find last valid shell string in message.data
-            msg  = message.data.split(b'shell:')[-1]
-            shell_msg = b'shell:' + msg
+            msg  = decode(message.data.split(b'shell:')[-1])
+            shell_msg = 'shell:' + msg
             unixtime = time.time()
             humantime = getutctime(unixtime)
-            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], decode(shell_msg[:-1])), self.cfg)
+            log('{}\t{}\t{}'.format(humantime, self.cfg['src_addr'], shell_msg[:-1]), self.cfg)
             event = {
                 'eventid': 'adbhoney.command.input',
                 'timestamp': humantime,
@@ -353,17 +376,17 @@ class AdbHoneyProtocolBase(Protocol):
                 'sensor': self.cfg['sensor']
             }
             write_event(event, self.cfg)
-            commands = event['input'].split(b';')
+            commands = event['input'].split(';')
             for command in commands:
                 words = command.strip().split()
                 first_word = words[0]
                 words.pop(0)
-                if first_word == b'busybox':
+                if first_word == 'busybox':
                     first_word = words[0]
                     words.pop(0)
-                if first_word == b'echo':
-                    self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, b' '.join(words))
-                elif first_word == b'wget' or first_word == b'curl':
+                if first_word == 'echo':
+                    self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, ' '.join(words))
+                elif first_word == 'wget' or first_word == 'curl':
                     self.download_shell_links(words)
         elif b'sync:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
@@ -439,7 +462,7 @@ class AdbHoneyProtocolBase(Protocol):
                     fname = 'blank_fname'
                     if predata:
                         # Wished destination filename
-                        fname = predata.split(b',')[0]
+                        fname = decode(predata.split(b',')[0])
                     dr_file = message.data.split(b'DATA')[1][4:-8]
                     self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
                     self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, 'OKAY')
@@ -452,7 +475,7 @@ class AdbHoneyProtocolBase(Protocol):
                     predata = message.data.split(b'DATA')[0]
                     if predata:
                         # Wished destination filename
-                        self.filename = predata.split(b',')[0]
+                        self.filename = decode(predata.split(b',')[0])
                     self.data_file = message.data.split(b'DATA')[1][4:]
 
                 if b'SEND' not in message.data[:128]:
@@ -522,7 +545,7 @@ def main():
 
     connect = 'tcp:{}:interface={}'.format(cfg_options['port'], cfg_options['addr'])
     endpoints.serverFromString(reactor, connect).listen(ADBFactory(cfg_options))
-    reactor.run()
+    reactor.run()   # pylint: disable=no-member
 
     # After the reactor is stoped by hitting Control-C in a terminal
     log('Exiting...', cfg_options)
