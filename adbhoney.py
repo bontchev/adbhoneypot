@@ -331,7 +331,8 @@ class AdbHoneyProtocolBase(Protocol):
         Called when we get an incoming CNXN message
         """
         systemIdentityString = self.cfg['device_id'].encode('utf8')
-        log('Protocol version {}-{} and max payload {}-{}'.format(self.version, version, self.maxPayload, maxPayload), self.cfg)
+        if version != self.version or self.maxPayload != maxPayload:
+            log('Protocol version {}-{} and max payload {}-{}'.format(self.version, version, self.maxPayload, maxPayload), self.cfg)
         if version != self.version or self.maxPayload < maxPayload:
             log('Disconnecting: Protocol version or max payload mismatch', self.cfg)
             self.transport.loseConnection()
