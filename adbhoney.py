@@ -15,8 +15,9 @@ import socket
 import errno
 import sys
 import os
+import re
 
-__VERSION__ = '2.0.0'
+__VERSION__ = '2.0.1'
 
 def log(message, cfg):
     if cfg['logfile'] is None:
@@ -53,8 +54,8 @@ def import_plugins(cfg):
             log('Loaded output engine: {}'.format(engine), cfg)
         except ImportError as e:
             log('Failed to load output engine: {} due to ImportError: {}'.format(engine, e), cfg)
-        except Exception:
-            log('Failed to load output engine: {}'.format(engine), cfg)
+        except Exception as e:
+            log('Failed to load output engine: {} {}'.format(engine, e), cfg)
     return output_plugins
 
 def write_event(event, cfg):
@@ -228,66 +229,63 @@ class AdbHoneyProtocolBase(Protocol):
             with open(fullname, 'wb') as f:
                 f.write(data)
 
-    def download_shell_links(self, command):
+    def download_from_url(self, dl_link, real_fname):
+        try:
+            r = requests.get(dl_link, stream=True)
+        except Exception as e:
+            log(e, self.cfg)
+            r = None
+        if r and r.status_code == 200:
+            download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
+            unixtime = time.time()
+            humantime = getutctime(unixtime)
+            dl_len = 0
+            file_data = ''
+            for chunk in r.iter_content(chunk_size=100000):
+                dl_len += len(chunk)
+                if dl_len <= download_limit_size or download_limit_size == 0:
+                    file_data += chunk
+                else:
+                    log('{}\tfile:{} is too large, not saved.'.format(
+                                                humantime, dl_link), self.cfg)
+                    return
+            shasum = hashlib.sha256(file_data).hexdigest()
+            fname = 'data-{}.raw'.format(shasum)
+            fullname = os.path.join(self.cfg['download_dir'], fname)
+            event = {
+                    'eventid': 'adbhoney.session.file_upload',
+                    'timestamp': humantime,
+                    'unixtime': unixtime,
+                    'session': self.cfg['session'],
+                    'message': 'Downloaded file {} from {} with SHA-256 {} to {}'.format(real_fname, dl_link, shasum, fullname),
+                    'src_ip': self.cfg['src_addr'],
+                    'shasum': shasum,
+                    'dst_path': real_fname,
+                    'fullname': fullname,
+                    'file_size': dl_len,
+                    'sensor': self.cfg['sensor'],
+                    'url': dl_link
+                }
+            write_event(event, self.cfg)
+            mkdir(self.cfg['download_dir'])
+            if os.path.exists(fullname):
+                log('File already exists, nothing written to disk.', self.cfg)
+            else:
+                with open(fullname, 'wb') as f:
+                    f.write(file_data)
+                log('{}\tfile:{} - dumping {} bytes of data to {}...'.format(
+                    humantime, dl_link, dl_len, fullname), self.cfg)
+
+    def download_shell_links(self, arguments):
         # This code downloads files from [busybox] wget and curl
         download_files = CONFIG.getboolean('honeypot', 'download_files', fallback=True)
-        if download_files and ('wget' in command or 'curl' in command):
-            dl_cmd = command.replace('busybox', '').replace('wget', '').replace('curl', '')
-            dl_link = dl_cmd.strip().split(' ')[0].strip()
-            real_fname = dl_link.split('/')[-1]
-            try:
-                r = requests.get(dl_link, stream=True)
-            except Exception as e:
-                log(e, self.cfg)
-                r = None
-
-            if r and r.status_code == 200:
-                download_limit_size = CONFIG.getint('honeypot', 'download_limit_size', fallback=0)
-                unixtime = time.time()
-                humantime = getutctime(unixtime)
-                dl_len = 0
-                file_data = ''
-                save_file = False
-                for chunk in r.iter_content(chunk_size=100000):
-                    dl_len += len(chunk)
-                    if dl_len <= download_limit_size or download_limit_size == 0:
-                        file_data += chunk
-                        save_file = True
-                    else:
-                        log('{}\tfile:{} is too large, not saved.'.format(
-                                                    humantime, dl_link), self.cfg)
-                        save_file = False
-                        break
-                if save_file:
-                    shasum = hashlib.sha256(file_data).hexdigest()
-                    fname = 'data-{}.raw'.format(shasum)
-                    fullname = os.path.join(self.cfg['download_dir'], fname)
-                    event = {
-                            'eventid': 'adbhoney.session.file_upload',
-                            'timestamp': humantime,
-                            'unixtime': unixtime,
-                            'session': self.cfg['session'],
-                            'message': 'Downloaded file {} from {} with SHA-256 {} to {}'.format(real_fname, dl_link, shasum, fullname),
-                            'src_ip': self.cfg['src_addr'],
-                            'shasum': shasum,
-                            'dst_path': real_fname,
-                            'fullname': fullname,
-                            'file_size': dl_len,
-                            'sensor': self.cfg['sensor'],
-                            'url': dl_link
-                        }
-                    write_event(event, self.cfg)
-                    mkdir(self.cfg['download_dir'])
-                    if os.path.exists(fullname):
-                        log('File already exists, nothing written to disk.', self.cfg)
-                    else:
-
-                        with open(fullname, 'wb') as f:
-                            f.write(file_data)
-
-                        log('{}\tfile:{} - dumping {} bytes of data to {}...'.format(
-                            humantime, dl_link, dl_len, fullname), self.cfg)
-
+        if not download_files:
+            return
+        for word in arguments:
+            if '://' in word:
+                dl_link = word.strip('/')
+                real_fname = dl_link.split('/')[-1]
+                self.download_from_url(dl_link, real_fname)
 
     def handle_CNXN(self, version, maxPayload, systemIdentityString, message):
         """
@@ -341,12 +339,16 @@ class AdbHoneyProtocolBase(Protocol):
             write_event(event, self.cfg)
             commands = event['input'].split(';')
             for command in commands:
-                sc = command.strip()
-                if 'echo' in sc:
-                    self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, sc.replace('echo', '').strip())
-                else:
-                    self.download_shell_links(sc)
-
+                words = command.strip().split()
+                first_word = words[0]
+                words.pop(0)
+                if first_word == 'busybox':
+                    first_word = words[0]
+                    words.pop(0)
+                if first_word == 'echo':
+                    self.sendCommand(protocol.CMD_WRTE, 2, message.arg0, ' '.join(words))
+                elif first_word == 'wget' or first_word == 'curl':
+                    self.download_shell_links(words)
         elif 'sync:' in message.data:
             self.sendCommand(protocol.CMD_OKAY, 2, message.arg0, '')
         else:
@@ -511,5 +513,4 @@ def main():
 
 
 if __name__ == '__main__':
-
     main()

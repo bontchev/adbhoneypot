@@ -7,8 +7,37 @@ import geoip2.database
 import requests
 import hashlib
 import core.output
+from twisted.enterprise import adbapi
+from twisted.internet import defer
 from core.config import CONFIG
 from adbhoney import log
+
+
+
+class ReconnectingConnectionPool(adbapi.ConnectionPool):
+    """
+    Reconnecting adbapi connection pool for MySQL.
+    This class improves on the solution posted at
+    http://www.gelens.org/2008/09/12/reinitializing-twisted-connectionpool/
+    by checking exceptions by error code and only disconnecting the current
+    connection instead of all of them.
+    Also see:
+    http://twistedmatrix.com/pipermail/twisted-python/2009-July/020007.html
+    """
+
+    def _runInteraction(self, interaction, *args, **kw):
+        try:
+            return adbapi.ConnectionPool._runInteraction(
+                self, interaction, *args, **kw)
+        except MySQLdb.OperationalError as e:
+            if e[0] not in (2003, 2006, 2013):
+                # print("RCP: got error {0}, retrying operation".format(e))
+                raise e
+            conn = self.connections.get(self.threadID())
+            self.disconnect(conn)
+            # Try the interaction again
+            return adbapi.ConnectionPool._runInteraction(
+                self, interaction, *args, **kw)
 
 
 class Output(core.output.Output):
@@ -18,7 +47,7 @@ class Output(core.output.Output):
         self.host = CONFIG.get('output_mysql', 'host', fallback='localhost')
         self.database = CONFIG.get('output_mysql', 'database', fallback='')
         self.user = CONFIG.get('output_mysql', 'username', fallback='')
-        self.password = CONFIG.get('output_mysql', 'password', fallback='')
+        self.password = CONFIG.get('output_mysql', 'password', fallback='', raw=True)
         self.port = CONFIG.getint('output_mysql', 'port', fallback=3306)
 
         self.geoipdb_city_path = CONFIG.get('output_mysql', 'geoip_citydb', fallback='')
@@ -30,6 +59,8 @@ class Output(core.output.Output):
         self.virustotal = CONFIG.getboolean('output_mysql', 'virustotal', fallback=True)
         self.vtapikey = CONFIG.get('output_mysql', 'virustotal_api_key', fallback='')
 
+        self.dbh = None
+
         core.output.Output.__init__(self, general_options)
 
     def _local_log(self, msg):
@@ -37,13 +68,22 @@ class Output(core.output.Output):
             log(msg, self.cfg)
 
     def start(self):
-        try:
-            self.dbh = MySQLdb.connect(host=self.host, user=self.user, passwd=self.password,
-                                       db=self.database, port=self.port, charset='utf8', use_unicode=True)
-        except:
-            self._local_log('Unable to connect the database')
 
-        self.cursor = self.dbh.cursor()
+        try:
+            self.dbh = ReconnectingConnectionPool(
+                'MySQLdb',
+                host=self.host,
+                db=self.database,
+                user=self.user,
+                passwd=self.password,
+                port=self.port,
+                charset='utf8',
+                use_unicode=True,
+                cp_min=1,
+                cp_max=1
+            )
+        except MySQLdb.Error as e:
+            self._local_log("MySQL plugin: Error %d: %s" % (e.args[0], e.args[1]))
 
         if self.geoip:
             try:
@@ -57,8 +97,6 @@ class Output(core.output.Output):
                 self._local_log('Failed to open GeoIP database {}'.format(self.geoipdb_asn_path))
 
     def stop(self):
-        self.cursor.close()
-        self.cursor = None
         self.dbh.close()
         self.dbh = None
         if self.geoip:
@@ -67,6 +105,7 @@ class Output(core.output.Output):
             if self.reader_asn is not None:
                self.reader_asn.close()
 
+    @defer.inlineCallbacks
     def write(self, event):
         """
         TODO: Check if the type (date, datetime or timestamp) of columns is appropriate for your needs and timezone
@@ -81,12 +120,11 @@ class Output(core.output.Output):
 
         if 'file_upload' in event['eventid']:
             try:
-                self.cursor.execute("""
+                self.dbh.runQuery("""
                     INSERT INTO downloads (session, timestamp, filesize, download_sha_hash, fullname)
                     VALUES (%s,FROM_UNIXTIME(%s),%s,%s,%s)""",
                     (event['session'], event['unixtime'], event['file_size'],
                         event['shasum'], event['fullname']))
-                self.dbh.commit()
             except Exception as e:
                 self._local_log(e)
 
@@ -98,12 +136,12 @@ class Output(core.output.Output):
 
         if 'closed' in event['eventid']:
             try:
-                self.cursor.execute("UPDATE connections SET endtime = FROM_UNIXTIME(%s) WHERE session = %s",
-                                    (event['unixtime'], event['session']) )
-                self.dbh.commit()
+                yield self.dbh.runQuery("UPDATE connections SET endtime = FROM_UNIXTIME(%s) WHERE session = %s",
+                                    (event['unixtime'], event['session']))
             except Exception as e:
                 self._local_log(e)
 
+    @defer.inlineCallbacks
     def _connect_event(self, event):
         remote_ip = event['src_ip']
         if self.geoip:
@@ -147,19 +185,20 @@ class Output(core.output.Output):
             asn_num = 0
 
         try:
-            is_exist = self.cursor.execute("SELECT id, name FROM sensors WHERE name='%s'" % event['sensor'])
-            if not is_exist:
-                self.cursor.execute("INSERT INTO sensors (name) VALUES ('%s')" % (event['sensor']))
-                self.dbh.commit()
-                sensor_id = self.cursor.lastrowid
+            r = yield self.dbh.runQuery("SELECT id, name FROM sensors WHERE name='%s'" % event['sensor'])
+            if r:
+                sensor_id = r[0][0]
             else:
-                sensor_id = self.cursor.fetchall()[0][0]
+                yield self.dbh.runQuery("INSERT INTO sensors (name) VALUES ('%s')" % (event['sensor']))
+
+                r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
+                sensor_id = int(r[0][0])
         except Exception as e:
             self._local_log(e)
             sensor_id = None
 
         try:
-            self.cursor.execute("""
+            yield self.dbh.runQuery("""
                 INSERT INTO connections (
                     session, starttime, endtime, sensor, ip, local_port,
                     country_name, city_name, org, country_iso_code, org_asn,
@@ -169,16 +208,15 @@ class Output(core.output.Output):
                 (event['session'], event['unixtime'], None, sensor_id,
                  event['src_ip'], event['dst_port'], country, city, org,
                  country_code, asn_num, event['dst_ip'], event['src_port']))
-            self.dbh.commit()
         except Exception as e:
             self._local_log(e)
 
+    @defer.inlineCallbacks
     def _upload_event_vt(self, shasum):
-        is_exist = self.cursor.execute("""
-					SELECT virustotal_sha256_hash
+        rd = yield self.dbh.runQuery("""SELECT virustotal_sha256_hash
                                         FROM virustotals
                                         WHERE virustotal_sha256_hash='%s'""" % shasum)
-        if is_exist == 0:
+        if not rd:
             if self.vtapikey:
                 url = 'https://www.virustotal.com/vtapi/v2/file/report'
                 params = {'apikey': self.vtapikey, 'resource': shasum}
@@ -198,19 +236,19 @@ class Output(core.output.Output):
                 # Convert UTC scan_date to local Unix time
                 unixtime = time.mktime(time.strptime(j['scan_date'], '%Y-%m-%d %H:%M:%S')) - time.timezone
                 try:
-                    self.cursor.execute("""
+                    self.dbh.runQuery("""
                                         INSERT INTO virustotals (
                                             virustotal_sha256_hash,
                                             virustotal_permalink,
                                             virustotal_timestamp)
                                         VALUES (%s,%s,%s)""",
                                         (shasum, permalink, unixtime))
+
                 except Exception as e:
                     self._local_log(e)
 
-                self.dbh.commit()
-
-                virustotal = self.cursor.lastrowid
+                rd = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
+                virustotal = int(rd[0][0])
 
                 scans = j['scans']
                 for av, val in scans.items():
@@ -219,7 +257,7 @@ class Output(core.output.Output):
                     if res == '':
                         res = None
                     try:
-                        self.cursor.execute("""
+                        self.dbh.runQuery("""
                                             INSERT INTO virustotalscans (
                                                 virustotal,
                                                 virustotalscan_scanner,
@@ -230,33 +268,32 @@ class Output(core.output.Output):
                         self._local_log(e)
                     # self._local_log("scanner {} result {}".format(av, scans[av]))
 
-                self.dbh.commit()
-
     def _emulate_command(self, command):
         # TODO: implement the logic
         return False
 
+    @defer.inlineCallbacks
     def _input_event(self, event):
         commands = event['input'].split(';')
         for command in commands:
             sc = command.strip()
             shasum = hashlib.sha256(sc).hexdigest()
-            command_id = self.cursor.execute("SELECT id FROM commands WHERE inputhash='%s'" % shasum)
-            if not command_id:
+            r = yield self.dbh.runQuery("SELECT id FROM commands WHERE inputhash='%s'" % shasum)
+            if not r:
                 try:
-                    self.cursor.execute("INSERT INTO commands (input, inputhash) VALUES (%s,%s)",
+                    self.dbh.runQuery("INSERT INTO commands (input, inputhash) VALUES (%s,%s)",
                                         (sc, shasum))
-                    self.dbh.commit()
-                    command_id = self.cursor.lastrowid
+                    r = yield self.dbh.runQuery('SELECT LAST_INSERT_ID()')
+                    command_id = int(r[0][0])
                 except Exception as e:
                     self._local_log(e)
                     command_id = 0
             else:
-                command_id = self.cursor.fetchall()[0][0]
+                command_id = int(r[0][0])
 
             success = self._emulate_command(sc)
             try:
-                self.cursor.execute("""
+                self.dbh.runQuery("""
                                     INSERT INTO input (
                                         session,
                                         timestamp,
@@ -264,7 +301,6 @@ class Output(core.output.Output):
                                         input)
                                         VALUES (%s,FROM_UNIXTIME(%s),%s,%s)""",
                                     (event['session'], event['unixtime'], success, command_id))
-                self.dbh.commit()
 
             except Exception as e:
                 self._local_log(e)
