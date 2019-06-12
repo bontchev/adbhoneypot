@@ -190,6 +190,7 @@ class AdbHoneyProtocolBase(Protocol):
             duration = unixtime - self.start
             log('{}\t{}\tconnection closed ({})'.format(humantime, self.cfg['src_addr'],
                 self.cfg['session']), self.cfg)
+            log('Closed session ({}). Reason: {} '.format(self.cfg['session'], close_msg), self.cfg)
             event = {
                 'eventid': 'adbhoney.session.closed',
                 'timestamp': humantime,
@@ -330,8 +331,9 @@ class AdbHoneyProtocolBase(Protocol):
         Called when we get an incoming CNXN message
         """
         systemIdentityString = self.cfg['device_id'].encode('utf8')
-        if version != self.version or self.maxPayload < maxPayload:
+        if version != self.version or self.maxPayload != maxPayload:
             log('Protocol version {}-{} and max payload {}-{}'.format(self.version, version, self.maxPayload, maxPayload), self.cfg)
+        if version != self.version or self.maxPayload < maxPayload:
             log('Disconnecting: Protocol version or max payload mismatch', self.cfg)
             self.transport.loseConnection()
         else:
