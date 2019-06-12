@@ -36,4 +36,3 @@ class Output(core.output.Output):
                     raise
         with open(self.outfile, 'a') as f:
             print(json.dumps(event_dump), file=f)
-

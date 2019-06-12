@@ -190,6 +190,7 @@ class AdbHoneyProtocolBase(Protocol):
             duration = unixtime - self.start
             log('{}\t{}\tconnection closed ({})'.format(humantime, self.cfg['src_addr'],
                 self.cfg['session']), self.cfg)
+            log('Closed session ({}). Reason: {} '.format(self.cfg['session'], close_msg), self.cfg)
             event = {
                 'eventid': 'adbhoney.session.closed',
                 'timestamp': humantime,
