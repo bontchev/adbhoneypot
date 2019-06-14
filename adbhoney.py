@@ -227,7 +227,7 @@ class AdbHoneyProtocolBase(Protocol):
         else:
             self.streams[message.arg0] = []
             self.streams[message.arg0].append(states)
-        handler(message.arg0, message.arg1, message.data, message)
+        handler(message.arg0, message.arg1, message.data, message)  # pylint: disable=too-many-function-args
 
     def unhandledMessage(self, message):
         log('Unhandled message: {}'.format(message_to_string(message)), self.cfg)
