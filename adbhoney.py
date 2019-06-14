@@ -206,7 +206,7 @@ class AdbHoneyProtocolBase(Protocol):
     def getMessage(self, data):
         try:
             message, self.buff = protocol.AdbMessage.decode(self.buff)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=unused-variable
             # TODO: correctly handle corrupt messages
             # log(e, cfg)
             return
@@ -227,7 +227,7 @@ class AdbHoneyProtocolBase(Protocol):
         else:
             self.streams[message.arg0] = []
             self.streams[message.arg0].append(states)
-        handler(message.arg0, message.arg1, message.data, message)
+        handler(message.arg0, message.arg1, message.data, message)  # pylint: disable=too-many-function-args
 
     def unhandledMessage(self, message):
         log('Unhandled message: {}'.format(message_to_string(message)), self.cfg)
@@ -547,7 +547,7 @@ def main():
 
     connect = 'tcp:{}:interface={}'.format(cfg_options['port'], cfg_options['addr'])
     endpoints.serverFromString(reactor, connect).listen(ADBFactory(cfg_options))
-    reactor.run()
+    reactor.run()   # pylint: disable=no-member
 
     # After the reactor is stoped by hitting Control-C in a terminal
     log('Exiting...', cfg_options)
