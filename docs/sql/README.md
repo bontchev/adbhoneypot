@@ -126,7 +126,7 @@ VirusTotal (and the results recorded in your MySQL database), set the option
 ## Restart ADBHoneypot
 
 ```bash
-cd ~/abdhoneypot/bin/
+cd ~/adbhoneypot/bin/
 ./adbhoney restart
 ```
 
