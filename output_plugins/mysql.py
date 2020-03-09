@@ -27,7 +27,7 @@ class ReconnectingConnectionPool(adbapi.ConnectionPool):
             return adbapi.ConnectionPool._runInteraction(
                 self, interaction, *args, **kw)
         except MySQLdb.OperationalError as e:
-            if e[0] not in (2003, 2006, 2013):
+            if e.args[0] not in (2003, 2006, 2013):
                 # print("RCP: got error {0}, retrying operation".format(e))
                 raise e
             conn = self.connections.get(self.threadID())
