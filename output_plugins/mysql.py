@@ -1,13 +1,25 @@
+
 from __future__ import print_function
-import MySQLdb
+
 import time
 import geoip2.database
 import requests
 import hashlib
+
+try:
+    from MySQLdb import Error, OperationalError
+except ImportError:
+    try:
+        from MySQLdb._exceptions import Error, OperationalError
+    except ImportError:
+        from _mysql_exceptions import Error, OperationalError
+
 import core.output
+
 from twisted.enterprise import adbapi
 from twisted.internet import defer
 from core.config import CONFIG
+
 from adbhoney import log
 
 
@@ -26,7 +38,7 @@ class ReconnectingConnectionPool(adbapi.ConnectionPool):
         try:
             return adbapi.ConnectionPool._runInteraction(
                 self, interaction, *args, **kw)
-        except MySQLdb.OperationalError as e:
+        except OperationalError as e:
             if e.args[0] not in (2003, 2006, 2013):
                 # print("RCP: got error {0}, retrying operation".format(e))
                 raise e
@@ -79,7 +91,7 @@ class Output(core.output.Output):
                 cp_min=1,
                 cp_max=1
             )
-        except MySQLdb.Error as e:
+        except Error as e:
             self._local_log("MySQL plugin: Error %d: %s" % (e.args[0], e.args[1]))
 
         if self.geoip:

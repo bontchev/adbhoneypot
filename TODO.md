@@ -1,5 +1,7 @@
 # Planned Future Improvements
 
+* Use os.linesep instead of '\n' in the JSON plugin
+* Implement proper log rotation via Twisted
 * Implement an output plugin for sending samples to MalShare
 * Implement an ElasticSearch output plugin
 * Implement an output plugin for sending samples to VirusTotal
