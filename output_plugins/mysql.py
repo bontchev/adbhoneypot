@@ -1,10 +1,11 @@
 
 from __future__ import print_function
 
-import time
+from sys import exc_info
 import geoip2.database
 import requests
 import hashlib
+import time
 
 try:
     from MySQLdb import Error, OperationalError
@@ -14,11 +15,13 @@ except ImportError:
     except ImportError:
         from _mysql_exceptions import Error, OperationalError
 
+from core.config import CONFIG
 import core.output
 
+from twisted.python import log as twisted_log
+from twisted.python.compat import reraise
 from twisted.enterprise import adbapi
 from twisted.internet import defer
-from core.config import CONFIG
 
 from adbhoney import log
 
@@ -35,18 +38,31 @@ class ReconnectingConnectionPool(adbapi.ConnectionPool):
     """
 
     def _runInteraction(self, interaction, *args, **kw):
+
+        def rerise_exception(conn):
+            _, excValue, excTraceback = exc_info()
+            try:
+                conn.rollback()
+            except:
+                twisted_log.msg('Rollback failed')
+            reraise(excValue, excTraceback)
+
+        conn = self.connectionFactory(self)
+        trans = self.transactionFactory(self, conn)
         try:
-            return adbapi.ConnectionPool._runInteraction(
-                self, interaction, *args, **kw)
+            result = interaction(trans, *args, **kw)
+            trans.close()
+            conn.commit()
+            return result
         except OperationalError as e:
             if e.args[0] not in (2003, 2006, 2013):
-                # print("RCP: got error {0}, retrying operation".format(e))
-                raise e
-            conn = self.connections.get(self.threadID())
-            self.disconnect(conn)
-            # Try the interaction again
-            return adbapi.ConnectionPool._runInteraction(
-                self, interaction, *args, **kw)
+                rerise_exception(conn)
+            else:
+                conn = self.connections.get(self.threadID())
+                self.disconnect(conn)
+                return adbapi.ConnectionPool._runInteraction(self, interaction, *args, **kw)
+        except:
+            rerise_exception(conn)
 
 
 class Output(core.output.Output):
