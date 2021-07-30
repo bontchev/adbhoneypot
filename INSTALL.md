@@ -60,7 +60,7 @@ $ sudo su - adbh
 ## Step 4: Checkout the code
 
 ```bash
-$ git clone https://gitlab.com/venetay/adbhoneypot.git
+$ git clone https://github.com/bontchev/adbhoneypot.git
 Cloning into 'adbhoneypot'...
 remote: Enumerating objects: 58, done.
 remote: Counting objects: 100% (58/58), done.
